@@ -1,2 +1,0 @@
-[console_scripts]
-ghostroot = ghostroot.run:main
