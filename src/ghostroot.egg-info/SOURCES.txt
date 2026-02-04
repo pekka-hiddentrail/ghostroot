@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+src/ghostroot/__init__.py
+src/ghostroot/config.py
+src/ghostroot/run.py
+src/ghostroot/tools.py
+src/ghostroot.egg-info/PKG-INFO
+src/ghostroot.egg-info/SOURCES.txt
+src/ghostroot.egg-info/dependency_links.txt
+src/ghostroot.egg-info/entry_points.txt
+src/ghostroot.egg-info/requires.txt
+src/ghostroot.egg-info/top_level.txt
+src/ghostroot/agents/researcher.py
+src/ghostroot/agents/speaker.py
+tests/test_tools.py
