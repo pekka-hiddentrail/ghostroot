@@ -1,12 +1,15 @@
 [project]
 name = "ghostroot"
 version = "0.1.0"
-description = "Agentic conlang archaeology PoC"
+description = "A multi-agent archaeology of language: reconstructing a lost proto-tongue from fragments, echoes, and scholarly disagreement."
 requires-python = ">=3.11"
+authors = [
+  { name = "You" }
+]
+
 dependencies = [
   "python-dotenv>=1.0.0",
-  "pydantic>=2.0.0",
-  "rich>=13.0.0"
+  "rich>=13.7.0"
 ]
 
 [project.optional-dependencies]
@@ -18,11 +21,14 @@ openai = [
 [project.scripts]
 ghostroot = "ghostroot.run:main"
 
-[tool.uv]
-dev-dependencies = [
-  "pytest>=8.0.0",
-  "ruff>=0.6.0"
-]
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100

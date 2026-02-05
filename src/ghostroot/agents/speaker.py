@@ -38,7 +38,7 @@ def generate_artifact(
         "graffiti near a dock",
         "maker's mark on a tool",
     ]
-    context = seed_context or random.choice(contexts)
+    context = random.choice(contexts)
 
     prompt = f"""
 You are an extinct speaker of a daughter language called {branch}.
@@ -53,7 +53,19 @@ Context: {context}
 
     raw = _ollama_generate(ollama_bin, model, prompt)
 
-    line = raw.splitlines()[0].strip()
+    # Extract all words from response
+    all_words = [w for w in raw.split() if w and len(w) > 1]
+    
+    if not all_words:
+        all_words = [w for w in raw.split() if w]
+    
+    # Pick a random word as starting point
+    if all_words:
+        start_word = random.choice(all_words)
+        line = start_word
+    else:
+        line = raw.strip()
+    
     line = re.sub(r'^[\'"]|[\'"]$', "", line).strip()
 
     words = [w for w in line.split() if w]

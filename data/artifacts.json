@@ -1,74 +1,20 @@
 [
   {
-    "id": "A1770216157901",
+    "id": "A1770279216117",
     "language": "branch_b",
     "type": "inscription",
-    "text": "Thinking...",
+    "text": "answer:",
     "metadata": {
-      "context": "tomb offering label"
+      "context": "graffiti near a dock"
     }
   },
   {
-    "id": "A1770216496175",
+    "id": "A1770279559546",
     "language": "branch_a",
     "type": "inscription",
-    "text": "Thinking...",
-    "metadata": {
-      "context": "short prayer fragment"
-    }
-  },
-  {
-    "id": "A1770216725272",
-    "language": "branch_b",
-    "type": "inscription",
-    "text": "Thinking...",
+    "text": "sil",
     "metadata": {
       "context": "trade receipt scratched on wood"
-    }
-  },
-  {
-    "id": "A1770216944258",
-    "language": "branch_a",
-    "type": "inscription",
-    "text": "Thinking...",
-    "metadata": {
-      "context": "boundary marker inscription"
-    }
-  },
-  {
-    "id": "A1770216949523",
-    "language": "branch_a",
-    "type": "inscription",
-    "text": "Not thinking...",
-    "metadata": {
-      "context": "trade receipt scratched on wood"
-    }
-  },
-  {
-    "id": "A1770217403682",
-    "language": "branch_b",
-    "type": "inscription",
-    "text": "Thinking...",
-    "metadata": {
-      "context": "maker's mark on a tool"
-    }
-  },
-  {
-    "id": "A1770217606979",
-    "language": "branch_b",
-    "type": "inscription",
-    "text": "Thinking...",
-    "metadata": {
-      "context": "maker's mark on a tool"
-    }
-  },
-  {
-    "id": "A1770218269270",
-    "language": "branch_a",
-    "type": "inscription",
-    "text": "Thinking...",
-    "metadata": {
-      "context": "maker's mark on a tool"
     }
   }
 ]

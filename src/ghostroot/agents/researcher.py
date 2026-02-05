@@ -58,6 +58,8 @@ You are a historical linguist reconstructing a lost proto-language from descenda
 You have imperfect evidence. Be cautious and explicit about uncertainty.
 
 Output limit:
+- Use maximum or 1500 words.
+- 300 rows maximum.
 - No rambling.
 
 Tasks:
