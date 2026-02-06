@@ -14,9 +14,11 @@ class Settings:
     data_dir: Path
     artifacts_path: Path
     research_log_path: Path
+    research_questions_path: Path
 
     backend: str  # "ollama" or "openai" (later)
-    ollama_model: str
+    ollama_speaker_model: str
+    ollama_researcher_model: str
     ollama_bin: str
 
     max_speaker_words: int = 6
@@ -35,9 +37,11 @@ def load_settings() -> Settings:
     data_dir = project_root / "data"
     artifacts_path = data_dir / "artifacts.json"
     research_log_path = data_dir / "research_log.json"
+    research_questions_path = data_dir / "research_questions.json"
 
     backend = os.getenv("GHOSTROOT_BACKEND", "ollama").strip().lower()
-    ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:4b").strip()
+    ollama_speaker_model = os.getenv("OLLAMA_SPEAKER_MODEL", "qwen2.5:1.5b").strip()
+    ollama_researcher_model = os.getenv("OLLAMA_RESEARCHER_MODEL", "gemma:2b").strip()
     ollama_bin = os.getenv("OLLAMA_BIN", "ollama").strip()
 
     return Settings(
@@ -45,7 +49,9 @@ def load_settings() -> Settings:
         data_dir=data_dir,
         artifacts_path=artifacts_path,
         research_log_path=research_log_path,
+        research_questions_path=research_questions_path,
         backend=backend,
-        ollama_model=ollama_model,
+        ollama_speaker_model=ollama_speaker_model,
+        ollama_researcher_model=ollama_researcher_model,
         ollama_bin=ollama_bin,
     )

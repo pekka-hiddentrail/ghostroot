@@ -92,6 +92,88 @@ def search_artifacts(
     return matches
 
 
+def append_research_question(questions_path: Path, question: Dict[str, Any]) -> None:
+    questions = load_json_list(questions_path)
+    questions.append(question)
+    write_json_list(questions_path, questions)
+
+
+def load_research_questions(questions_path: Path) -> List[Dict[str, Any]]:
+    """Load all research questions from JSON file."""
+    return load_json_list(questions_path)
+
+
+def update_research_questions(
+    questions_path: Path,
+    question_updates: List[Dict[str, Any]]
+) -> int:
+    """
+    Update existing research questions with new answers or confidence.
+    
+    Args:
+        questions_path: Path to research_questions.json
+        question_updates: List of updated question dicts with 'id' field
+        
+    Returns:
+        Number of questions updated
+    """
+    questions = load_json_list(questions_path)
+    
+    # Build lookup for updates by ID
+    updates_by_id = {u['id']: u for u in question_updates if 'id' in u}
+    
+    updated_count = 0
+    for question in questions:
+        qid = question.get('id')
+        if qid in updates_by_id:
+            update = updates_by_id[qid]
+            # Update fields
+            if 'proposed_answer' in update:
+                question['proposed_answer'] = update['proposed_answer']
+            if 'confidence' in update:
+                question['confidence'] = update['confidence']
+            question['updated_at'] = int(time.time())
+            updated_count += 1
+    
+    write_json_list(questions_path, questions)
+    return updated_count
+
+
+def update_artifact_glosses(
+    artifacts_path: Path,
+    gloss_updates: List[Dict[str, Any]]
+) -> int:
+    """
+    Update artifacts with new gloss interpretations.
+    
+    Args:
+        artifacts_path: Path to artifacts.json
+        gloss_updates: List of dicts with 'artifact_id', 'gloss', 'confidence'
+        
+    Returns:
+        Number of artifacts updated
+    """
+    artifacts = load_json_list(artifacts_path)
+    
+    # Build lookup for updates
+    updates_by_id = {u['artifact_id']: u for u in gloss_updates}
+    
+    updated_count = 0
+    for artifact in artifacts:
+        aid = artifact.get('id')
+        if aid in updates_by_id:
+            update = updates_by_id[aid]
+            if 'metadata' not in artifact:
+                artifact['metadata'] = {}
+            artifact['metadata']['gloss'] = update['gloss']
+            artifact['metadata']['confidence'] = update['confidence']
+            artifact['metadata']['gloss_updated_at'] = int(time.time())
+            updated_count += 1
+    
+    write_json_list(artifacts_path, artifacts)
+    return updated_count
+
+
 def make_id(prefix: str) -> str:
     """
     Generates a short unique-ish id for artifacts/log entries.

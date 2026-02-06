@@ -1,20 +1,340 @@
 [
   {
-    "id": "A1770279216117",
-    "language": "branch_b",
+    "id": "A1770304736945",
+    "language": "ghostlang",
     "type": "inscription",
-    "text": "answer:",
+    "text": "xu",
     "metadata": {
-      "context": "graffiti near a dock"
+      "context": "boundary marker inscription",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
     }
   },
   {
-    "id": "A1770279559546",
-    "language": "branch_a",
-    "type": "inscription",
-    "text": "sil",
+    "id": "A1770304736945_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "xu qyih",
     "metadata": {
-      "context": "trade receipt scratched on wood"
+      "context": "boundary marker inscription",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304766784",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "yuwa",
+    "metadata": {
+      "context": "short prayer fragment",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304766784_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Thx dace yuwa",
+    "metadata": {
+      "context": "short prayer fragment",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304783983",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "djqd",
+    "metadata": {
+      "context": "trade receipt scratched on wood",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304783983_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "qyjz xkxw lxye djqd",
+    "metadata": {
+      "context": "trade receipt scratched on wood",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304789552",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "loo",
+    "metadata": {
+      "context": "short prayer fragment",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "low",
+      "gloss_updated_at": 1770305190
+    }
+  },
+  {
+    "id": "A1770304789552_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Zo mo yi loo",
+    "metadata": {
+      "context": "short prayer fragment",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304794608",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "qjxswfz",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "medium",
+      "gloss_updated_at": 1770305190
+    }
+  },
+  {
+    "id": "A1770304794608_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "qfz qjxswfz",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304799819",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "yuq",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "low",
+      "gloss_updated_at": 1770305190
+    }
+  },
+  {
+    "id": "A1770304799819_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "`ziz yuq xix cay`",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304803412",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "xqyv",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "medium",
+      "gloss_updated_at": 1770305190
+    }
+  },
+  {
+    "id": "A1770304803412_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "zr'kx kqj xqyv",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304807256",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "gur",
+    "metadata": {
+      "context": "tomb offering label",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "low",
+      "gloss_updated_at": 1770305190
+    }
+  },
+  {
+    "id": "A1770304807256_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Thx gur fvgzrfv, svfgurefg.",
+    "metadata": {
+      "context": "tomb offering label",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304812884",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "q'axu",
+    "metadata": {
+      "context": "tomb offering label",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304812884_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "q'axu yu'xah qyux",
+    "metadata": {
+      "context": "tomb offering label",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304816640",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "qoq",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304816640_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "z'xuq z'xuq wu yu qoq",
+    "metadata": {
+      "context": "maker's mark on a tool",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304827609",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "ci",
+    "metadata": {
+      "context": "short prayer fragment",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770304827609_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Thu'wa yi gah ci",
+    "metadata": {
+      "context": "short prayer fragment",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770305638900",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "zaxt",
+    "metadata": {
+      "context": "palace construction records",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770305638900_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Khrin drom yuqar zaxt",
+    "metadata": {
+      "context": "palace construction records",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770306096066",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "Xwam",
+    "metadata": {
+      "context": "city gate offices",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770306096066_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Xwam qyux xaxuq yzix",
+    "metadata": {
+      "context": "city gate offices",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
     }
   }
 ]
