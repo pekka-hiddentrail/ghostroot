@@ -21,6 +21,7 @@ from ghostroot.tools import (
 )
 from ghostroot.agents.speaker import generate_artifact
 from ghostroot.agents.researcher import analyze_corpus
+from ghostroot.agents.context_researcher import analyze_contextual_fit
 
 
 def run_speaker_only(count: int) -> None:
@@ -149,13 +150,8 @@ def main() -> None:
     # Load existing research questions
     existing_questions = load_research_questions(s.research_questions_path)
     if existing_questions:
-        # Count questions with low/medium confidence or no answer
-        needs_review = sum(
-            1 for q in existing_questions 
-            if not q.get('confidence') or q.get('confidence', '').lower() in ['low', 'medium'] 
-            or not q.get('proposed_answer')
-        )
-        console.print(f"[dim]Loaded {len(existing_questions)} question(s), {needs_review} need review (low/medium confidence)[/dim]")
+        unanswered_count = sum(1 for q in existing_questions if not q.get('proposed_answer'))
+        console.print(f"[dim]Loaded {len(existing_questions)} question(s), {unanswered_count} unanswered (will review ALL)[/dim]")
     
     t0 = time.perf_counter()
     with console.status(
@@ -185,15 +181,34 @@ def main() -> None:
         console.print("[dim]No glosses generated this cycle[/dim]")
         console.print()
 
-    # Step 6: Save research note
-    console.print("[bold]Step 6[/bold] Saving research note…")
-    append_research_log(s.research_log_path, note)
-    console.print(f"[green]✓[/green] Saved to {s.research_log_path}")
+    # Step 6: Context researcher analyzes sentences
+    context_entry_id = make_id("C")
+    console.print(f"[bold]Step 6[/bold] Context researcher analyzing sentences [dim]{context_entry_id}[/dim]…")
+    
+    t0_context = time.perf_counter()
+    with console.status(
+    "[bold cyan]Context researcher analyzing word usage in sentences…[/bold cyan]",
+    spinner="dots",
+    ):
+        context_note = analyze_contextual_fit(
+            model=s.ollama_researcher_model,
+            entry_id=context_entry_id,
+            artifacts=artifacts,
+    )
+    dt_context = time.perf_counter() - t0_context
+    console.print(f"[green]✓[/green] Context researcher done in {dt_context:.2f}s")
     console.print()
 
-    # Step 7: Save research questions
+    # Step 7: Save research notes
+    console.print("[bold]Step 7[/bold] Saving research notes…")
+    append_research_log(s.research_log_path, note)
+    append_research_log(s.research_log_path, context_note)
+    console.print(f"[green]✓[/green] Saved word analysis and context analysis to {s.research_log_path}")
+    console.print()
+
+    # Step 8: Save research questions
     if new_questions:
-        console.print(f"[bold]Step 7[/bold] Saving {len(new_questions)} NEW research question(s)…")
+        console.print(f"[bold]Step 8[/bold] Saving {len(new_questions)} NEW research question(s)…")
         for q in new_questions:
             q["research_note_id"] = entry_id
             q["id"] = make_id("Q")
@@ -202,9 +217,9 @@ def main() -> None:
         console.print(f"[green]✓[/green] Saved to {s.research_questions_path}")
         console.print()
     
-    # Step 8: Update answered questions
+    # Step 9: Update answered questions
     if updated_questions:
-        console.print(f"[bold]Step 8[/bold] Updating {len(updated_questions)} answered question(s)…")
+        console.print(f"[bold]Step 9[/bold] Updating {len(updated_questions)} answered question(s)…")
         updated_count = update_research_questions(s.research_questions_path, updated_questions)
         console.print(f"[green]✓[/green] Updated {updated_count} question(s) in {s.research_questions_path}")
         console.print()
@@ -229,7 +244,7 @@ def main() -> None:
             f"Type: {art['type']}\n"
             f"Lang: {art['language']}\n"
             f"Text: {art['text']}\n"
-            f"Context: {art['metadata']['context']}"
+            f"Discovery: {art['metadata']['discovery']}"
             for art in new_artifacts
         ])
     ))
@@ -239,6 +254,13 @@ def main() -> None:
         f"ID: {note['id']}\n"
         f"Artifacts in corpus: {note['metadata']['artifact_count']}\n\n"
         f"{note['summary']}"
+    ))
+
+    console.print(Panel.fit(
+        f"[bold]Context Analysis[/bold]\n"
+        f"ID: {context_note['id']}\n"
+        f"Words analyzed: {context_note['metadata']['words_analyzed']}\n\n"
+        f"{context_note['summary']}"
     ))
 
     if new_questions:
@@ -264,12 +286,27 @@ def main() -> None:
         ))
 
     if glosses:
-        gloss_text = "\n".join([
-            f"[cyan]{g.get('artifact_id', '?')}:[/cyan] "
-            f"'{g.get('gloss', 'N/A')}' "
-            f"[dim]({g.get('confidence', '?')} confidence)[/dim]"
-            for g in glosses
-        ])
+        # Get artifact details for formatting
+        artifacts_for_display = load_artifacts(s.artifacts_path)
+        artifacts_lookup = {a['id']: a for a in artifacts_for_display}
+        
+        gloss_lines = []
+        for g in glosses:
+            aid = g.get('artifact_id', '?')
+            artifact = artifacts_lookup.get(aid, {})
+            original_word = artifact.get('text', '?')
+            meaning = g.get('meaning', 'N/A')
+            gloss = g.get('gloss', '')
+            confidence = g.get('confidence', '?')
+            
+            # Format: CODE 'original word': 'meaning' ('gloss if certain') level of certainty
+            if gloss and gloss.strip():
+                line = f"[cyan]{aid}[/cyan] '{original_word}': '{meaning}' ('{gloss}') [dim]{confidence}[/dim]"
+            else:
+                line = f"[cyan]{aid}[/cyan] '{original_word}': '{meaning}' [dim]{confidence}[/dim]"
+            gloss_lines.append(line)
+        
+        gloss_text = "\n".join(gloss_lines)
         console.print(Panel.fit(
             f"[bold]Artifact Glosses Updated[/bold] ({len(glosses)})\n\n{gloss_text}"
         ))

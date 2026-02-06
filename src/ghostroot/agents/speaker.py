@@ -45,9 +45,9 @@ def generate_artifact(
     branch: str,
     artifact_id: str,
     max_words: int = 5,
-    seed_context: Optional[str] = None,
+    seed_discovery: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    contexts = [
+    discoveries = [
         "trade receipt scratched on wood",
         "boundary marker inscription",
         "tomb offering label",
@@ -96,12 +96,16 @@ def generate_artifact(
         "judicial appeal archives"
     ]
 
-    context = random.choice(contexts)
+    discovery = random.choice(discoveries)
 
     prompt = f"""
 You are an extinct speaker of a daughter language called {branch}.
-Output EXACTLY ONE LINE. A sentence of 2–{max_words} nonsense words/strings of varying lengths. E.g. "yhews kahca zix" or "h'u thes wyaha rere". 
-The words should be evocative of the style of a {context}. No need for punctuation.
+Output EXACTLY ONE LINE. A sentence of 2–{max_words} nonsense words/strings of varying lengths.
+
+IMPORTANT: Each word MUST contain at least one vowel (a, e, i, o, u), preferably 2 vowels.
+Examples: "yhews kahca zix" or "h'u thes wyaha rere" or "anu beko tiras".
+
+The words should be evocative of the style of a {discovery}. No need for punctuation.
 Do NOT include analysis, thinking, or explanations.
 Return only the inscription text.
 """.strip()
@@ -136,7 +140,7 @@ Return only the inscription text.
             "type": "inscription",
             "text": single_word,
             "metadata": {
-                "context": context,
+                "discovery": discovery,
                 "gloss": "",
                 "meaning": "",
                 "confidence": "",
@@ -149,7 +153,7 @@ Return only the inscription text.
             "type": "sentence",
             "text": sentence,
             "metadata": {
-                "context": context,
+                "discovery": discovery,
                 "gloss": "",
                 "meaning": "",
                 "confidence": "",

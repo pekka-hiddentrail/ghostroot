@@ -1,24 +1,42 @@
 [
   {
-    "id": "R1770304832841",
+    "id": "R1770368937510",
     "type": "research_note",
-    "summary": "## Cognate Sets and Proto-Root Hypotheses\n\n**Set 1:**\n* Ghostlang - xu, yuwa, djqd, loo, qjxswfz, yuq, xqyv, gur, q, axu\n\n**Confidence: High**\n\n**Reasoning:** These words share similar forms and meanings with the corresponding concepts in English.\n\n**Set 2:**\n* Ghostlang - ziz, kqj, xqyv, thx, gur, fvgzrfv, q'axu, z'xuq\n\n**Confidence: Medium**\n\n**Reasoning:** While not exact cognates, these words share similar forms and meanings with the corresponding concepts in English.\n\n**Open Questions for Further Investigation:**\n\n1. Are there other inscriptions or artifacts in the collection that could contribute to understanding these cognate sets?\n2. Can we identify any linguistic features that distinguish these words from English counterparts?\n3. How do the cognate sets relate to the broader context of the language and its culture?",
+    "summary": "## Cognate Sets and Proto-Roots\n\n**Set 1:**\n* qoq (ghostlang) - qok (Proto-Indo-European)\n* wux (ghostlang) - wux (Proto-Indo-European)\n\n**Confidence: High**\n\n**Set 2:**\n* lies (ghostlang) - lie (Proto-Indo-European)\n*tix (ghostlang) - tix (Proto-Indo-European)\n\n**Confidence: Medium**\n\n## Open Questions for Further Investigation\n\n1. What is the meaning of \"qoq\" and \"wu\" in their respective languages?\n2. How does the gloss of \"dix\" differ between languages?\n3. Are there any cognates or similarities between the meanings of \"lies\" and \"tix\"?",
     "metadata": {
-      "artifact_count": 22,
+      "artifact_count": 10,
       "languages_seen": [
         "ghostlang"
       ]
     }
   },
   {
-    "id": "R1770305653816",
-    "type": "research_note",
-    "summary": "## Cognate Sets and Proto-Roots\n\n**Set 1:**\n* xu, yuwa, djqd, loo, qjxswfz, yuq, xqyv\n\nThese words seem to be related to the concept of a \"mark\" or \"sign\". They are all found in inscriptions from the same culture. However, the confidence is low due to the limited number of words and the absence of contextual clues.\n\n**Set 2:**\n* gur, q, axu\n\nThese words are also associated with the concept of a \"tomb\" or \"grave\". While they are more numerous than in Set 1, they still lack contextual clues and are not sufficiently similar to warrant a high confidence score.\n\n**Set 3:**\n* thx, gur fvgzrfv, svfgurefg\n\nThese words seem to be related to the concept of offering or sacrifice. They are also found in inscriptions from the same culture, but the context is still unclear. The confidence is low due to the limited number of words and the absence of contextual clues.\n\n\n## Open Questions for Further Investigation\n\n1. How can we determine the meaning of these words without further context?\n2. Are there any other cognates or related words that could shed light on their meaning?\n3. What other linguistic features can be used to analyze these inscriptions?",
+    "id": "C1770369272277",
+    "type": "context_analysis",
+    "summary": "No glossed words found in sentence contexts yet. Need more data.",
     "metadata": {
-      "artifact_count": 24,
+      "words_analyzed": 0,
+      "contradictions_found": 0
+    }
+  },
+  {
+    "id": "R1770369563702",
+    "type": "research_note",
+    "summary": "## Cognate Sets and Proto-Roots\n\n**Set 1:**\n* qoq, wu, dix,tix, xiridun - possible cognates for \"ghost\"\n* gloss: \"ghostly, ghostly, ghostly\"\n* meaning: \"something that is ghostly or ghostly\"\n* confidence: high\n\n**Set 2:**\n* yihcak, tsayu, ywz, ym zon - possible cognates for \"camp\"\n* gloss: \"military camp, camp, stronghold\"\n* meaning: \"a place used by the military\"\n* confidence: high\n\n**Open Questions:**\n1. Are there cognates for \"ghostly\" that are not related to death or mourning?\n2. Are there cognates for \"camp\" that are not related to military activity?",
+    "metadata": {
+      "artifact_count": 10,
       "languages_seen": [
         "ghostlang"
       ]
+    }
+  },
+  {
+    "id": "C1770372928363",
+    "type": "context_analysis",
+    "summary": "**Observations:**\n\n1. **Contextual fit:** The proposed meaning of \"qoq\" as a water offering fits well in the archaeological context. It is commonly used in astronomical and religious contexts to denote a ritual act of giving or offering something to a deity.\n\n\n2. **Contradictions:** The context of \"wu\" is unclear. While it could potentially indicate a territorial boundary, it is not consistent with the other context where it appears.\n\n\n3. **Confidence adjustment:** The confidence is medium for \"qoq\" due to the lack of clear contextual evidence. However, the low confidence for \"wu\" suggests that its meaning may be more ambiguous.\n\n\n**Suggested reinterpretation:**\n\nThe word \"qoq\" likely refers to a specific type of water offering, such as an astronomical offering or a religious ritual offering to a deity. The context of \"wu\" is unclear and could potentially indicate a different meaning.",
+    "metadata": {
+      "words_analyzed": 2,
+      "sentence_count": 2
     }
   }
 ]

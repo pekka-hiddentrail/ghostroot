@@ -134,17 +134,27 @@ def generate_artifact_glosses(
     artifacts_text = "\n".join(artifacts_list)
     
     prompt = f"""
-You are a historical linguist. Propose glosses (meaning interpretations) for these inscriptions.
+You are a historical linguist. Propose interpretations for these inscriptions.
+
+IMPORTANT RULES:
+1. First determine the MEANING (detailed English interpretation)
+2. Only if you have sufficient evidence, provide a GLOSS (1-4 word summary)
+3. If evidence is insufficient, provide meaning but leave gloss empty
 
 For each artifact, provide:
 - artifact_id: the ID
-- gloss: brief meaning (1-4 words)
-- meaning: more detailed meaning if possible
-- confidence: low|medium|high
+- meaning: detailed English meaning/interpretation (REQUIRED)
+- gloss: brief 1-4 word English label (ONLY if confident enough)
+- confidence: low|medium|high (based on evidence strength)
+
+Rules:
+- Both meaning and gloss must be in English
+- Meaning comes first, gloss only when justified
+- If gloss is uncertain, leave it as empty string ""
 
 Output a JSON array.
 
-Context (language statistics):
+Discovery (language statistics):
 {lang_summaries}
 
 Artifacts to gloss:
@@ -152,7 +162,8 @@ Artifacts to gloss:
 
 Example format:
 [
-  {{"artifact_id": "...", "gloss": "...", "meaning": "...", "confidence": "low|med|high"}}
+  {{"artifact_id": "A123", "meaning": "a ceremonial water offering to deities", "gloss": "water offering", "confidence": "medium"}},
+  {{"artifact_id": "A456", "meaning": "possibly indicates territorial boundary", "gloss": "", "confidence": "low"}}
 ]
 """.strip()
     
@@ -176,44 +187,34 @@ def generate_research_questions(
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Generate structured research questions with proposed answers and confidence.
-    Also attempts to answer or improve answers for existing questions with low/medium confidence.
+    Reviews ALL existing questions and attempts to answer or improve them.
     
     Returns:
         Tuple of (new_questions, updated_questions)
     """
-    # Prepare existing questions summary - filter for low or medium confidence
+    # Prepare existing questions summary - ALWAYS include ALL questions
     existing_q_text = ""
-    questions_to_review = []
     if existing_questions:
-        # Include questions with low/medium confidence or no answer, or no confidence specified
-        for q in existing_questions:
-            confidence = q.get('confidence', '').lower()
-            has_answer = q.get('proposed_answer') and q.get('proposed_answer').strip()
-            # Include if: no confidence set, confidence is low/medium, or no answer yet
-            if not confidence or confidence in ['low', 'medium'] or not has_answer:
-                questions_to_review.append(q)
-        
-        if questions_to_review:
-            existing_q_text = "\n\nExisting questions to answer or improve (low/medium confidence):\n"
-            for i, q in enumerate(questions_to_review, 1):
-                answer = q.get('proposed_answer', 'NO ANSWER YET')
-                conf = q.get('confidence', 'none')
-                existing_q_text += f"{i}. {q.get('question', 'N/A')}\n"
-                existing_q_text += f"   Current answer: {answer}\n"
-                existing_q_text += f"   Current confidence: {conf}\n"
-                existing_q_text += f"   (ID: {q.get('id', '?')})\n"
+        existing_q_text = "\n\nALL existing research questions to review:\n"
+        for i, q in enumerate(existing_questions, 1):
+            answer = q.get('proposed_answer', 'NO ANSWER YET')
+            conf = q.get('confidence', 'none')
+            existing_q_text += f"{i}. {q.get('question', 'N/A')}\n"
+            existing_q_text += f"   Current answer: {answer}\n"
+            existing_q_text += f"   Current confidence: {conf}\n"
+            existing_q_text += f"   (ID: {q.get('id', '?')})\n"
     
     prompt = f"""
 You are a historical linguist. Based on the evidence below:
 
-1) Review ALL existing questions listed below. For EACH question with low or medium confidence:
-   - Try to provide a better or more confident answer based on new evidence
-   - If the current answer seems correct, you may improve confidence or leave it
-   - If there's no answer yet, provide your best tentative answer
+1) Review ALL existing questions listed below:
+   - For questions with low/medium confidence or no answer: try to provide better answers
+   - For high-confidence questions: only update if new evidence contradicts or significantly improves the answer
+   - Always prioritize questions without answers first
 
 2) Generate 2-3 NEW research questions about the proto-language that haven't been asked yet
 
-IMPORTANT: For existing questions, you must review ALL of them and provide updates for any that you can improve.
+CRITICAL: You must review EVERY question listed. Always add ALL new questions to the JSON, even if you cannot provide answers yet.
 
 For ANSWERS/UPDATES to existing questions, provide:
 - question_id: the ID of the question being answered/updated
@@ -222,7 +223,7 @@ For ANSWERS/UPDATES to existing questions, provide:
 
 For NEW questions, provide:
 - question: the question text
-- proposed_answer: leave empty "" for now
+- proposed_answer: leave empty "" if you cannot answer yet
 - confidence: low (always start with low for new questions)
 
 Output TWO JSON arrays:

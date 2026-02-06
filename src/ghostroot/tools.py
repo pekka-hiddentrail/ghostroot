@@ -148,7 +148,7 @@ def update_artifact_glosses(
     
     Args:
         artifacts_path: Path to artifacts.json
-        gloss_updates: List of dicts with 'artifact_id', 'gloss', 'confidence'
+        gloss_updates: List of dicts with 'artifact_id', 'meaning', 'gloss', 'confidence'
         
     Returns:
         Number of artifacts updated
@@ -165,7 +165,9 @@ def update_artifact_glosses(
             update = updates_by_id[aid]
             if 'metadata' not in artifact:
                 artifact['metadata'] = {}
-            artifact['metadata']['gloss'] = update['gloss']
+            # Meaning is required, gloss is optional
+            artifact['metadata']['meaning'] = update.get('meaning', '')
+            artifact['metadata']['gloss'] = update.get('gloss', '')
             artifact['metadata']['confidence'] = update['confidence']
             artifact['metadata']['gloss_updated_at'] = int(time.time())
             updated_count += 1
