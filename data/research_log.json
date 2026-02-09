@@ -38,5 +38,65 @@
       "words_analyzed": 2,
       "sentence_count": 2
     }
+  },
+  {
+    "id": "R1770377800942",
+    "type": "research_note",
+    "summary": "## Cognate Sets and Proto-Roots\n\n**Set 1:**\n* xiridun (ghostlang)\n* rixlum (ghostlang)\n* refused (ghostlang)\n\n**Confidence: High**\n\n**Reasoning:** These words share similar forms and meanings, suggesting a common origin.\n\n**Set 2:**\n* no (ghostlang)\n* timeout/error (ghostlang)\n\n**Confidence: Medium**\n\n**Reasoning:** While the meaning is similar, the form suggests a shared root with \"no\".\n\n**Open Questions for Further Investigation:**\n\n1. What is the relationship between xiridun and rixlum? Are they synonyms or related concepts?\n2. How does the form of no differ from timeout/error? Is there a common ancestor?\n3. Can we identify other words that share similar forms and meanings with these sets?",
+    "metadata": {
+      "artifact_count": 20,
+      "languages_seen": [
+        "ghostlang"
+      ]
+    }
+  },
+  {
+    "id": "C1770378268992",
+    "type": "context_analysis",
+    "summary": "**Observations:**\n\n- 'qoq': The proposed meaning \"water offering\" is consistent with its context in astronomical contexts. However, it is not relevant to the other contexts.\n- 'wu': The meaning of \"possibly indicates territorial boundary\" is not clear from the context and cannot be assessed.\n- 'tix': The meaning of \"a boundary marking sign\" is consistent with its context in unknown contexts.\n- 'no': The meaning of \"a marker of refusal\" is consistent with its context in the specific example sentence.\n\n**Contradictions:**\n\n- The word \"qoq\" appears in an astronomical context but not in the other contexts.\n\n**Recommendations:**\n\n- Reinterpret \"qoq\" as a possibly astronomical term related to water offerings.\n- Consider rephrasing the ambiguous word \"wu\" to clarify its meaning.",
+    "metadata": {
+      "words_analyzed": 4,
+      "sentence_count": 7
+    }
+  },
+  {
+    "id": "R1770378784586",
+    "type": "research_note",
+    "summary": "## Cognate Sets and Proto-Root Hypotheses\n\n**Set 1:**\n* Ghostlang - xiridun - meaning: \"oracle\"\n* Ghostlang - nufi - meaning: \"wisdom\"\n\n**Set 2:**\n* Ghostlang - qoq - meaning: \"to fetch\"\n* Ghostlang - wux - meaning: \"to fight\"\n\n**Set 3:**\n* Ghostlang - dix - meaning: \"temple\"\n* Ghostlang - tix - meaning: \"gift\"\n\n## Open Questions for Further Investigation\n\n1. What is the relationship between \"tix\" and \"tiridun\"? Are they synonyms or related concepts?\n2. How does the meaning of \"wu\" differ between the inscription and the sentence?\n3. What is the connection between \"shi\" and \"nufi\"? Do they share a common origin?",
+    "metadata": {
+      "artifact_count": 14,
+      "languages_seen": [
+        "ghostlang"
+      ]
+    }
+  },
+  {
+    "id": "C1770379224137",
+    "type": "context_analysis",
+    "summary": "No glossed words found in sentence contexts yet. Need more data.",
+    "metadata": {
+      "words_analyzed": 0,
+      "contradictions_found": 0
+    }
+  },
+  {
+    "id": "R1770379346488",
+    "type": "research_note",
+    "summary": "## Cognate Sets and Proto-Root Hypotheses\n\n**Cognate sets:**\n\n1. **dix, tix, xiridun:** These words suggest a focus on place names and locations.\n2. **wu, qoq, nah**: These words indicate a focus on actions and activities.\n3. **yihs, yahu, ahs**: These words suggest a focus on people and their actions.\n\n**Proto-root hypotheses:**\n\n1. ***ti-*, *do-*:** These roots suggest a focus on actions and activities, possibly related to trade or agriculture.\n2. ***gu-*:** This root suggests a focus on places and locations.\n3. ***nu-*:** This root suggests a focus on people and their actions.",
+    "metadata": {
+      "artifact_count": 16,
+      "languages_seen": [
+        "ghostlang"
+      ]
+    }
+  },
+  {
+    "id": "C1770379749828",
+    "type": "context_analysis",
+    "summary": "No glossed words found in sentence contexts yet. Need more data.",
+    "metadata": {
+      "words_analyzed": 0,
+      "contradictions_found": 0
+    }
   }
 ]

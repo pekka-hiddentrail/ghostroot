@@ -6,8 +6,8 @@
     "text": "qoq",
     "metadata": {
       "discovery": "military camp headquarters",
-      "gloss": "water offering",
-      "meaning": "a ceremonial water offering to deities",
+      "gloss": "",
+      "meaning": "",
       "confidence": "medium",
       "gloss_updated_at": 1770372928
     }
@@ -33,7 +33,7 @@
     "metadata": {
       "discovery": "tomb offering label",
       "gloss": "",
-      "meaning": "possibly indicates territorial boundary",
+      "meaning": "",
       "confidence": "low",
       "gloss_updated_at": 1770372928
     }
@@ -60,8 +60,8 @@
       "discovery": "provincial governor residences",
       "gloss": "",
       "meaning": "",
-      "confidence": "",
-      "gloss_updated_at": null
+      "confidence": "medium",
+      "gloss_updated_at": 1770378268
     }
   },
   {
@@ -86,8 +86,8 @@
       "discovery": "harbor customs offices",
       "gloss": "",
       "meaning": "",
-      "confidence": "",
-      "gloss_updated_at": null
+      "confidence": "low",
+      "gloss_updated_at": 1770378268
     }
   },
   {
@@ -112,8 +112,8 @@
       "discovery": "treaty tablet deposits",
       "gloss": "",
       "meaning": "",
-      "confidence": "",
-      "gloss_updated_at": null
+      "confidence": "low",
+      "gloss_updated_at": 1770378268
     }
   },
   {
@@ -123,6 +123,84 @@
     "text": "Rixlum tafahel xiridun.",
     "metadata": {
       "discovery": "treaty tablet deposits",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770377781542",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "shi",
+    "metadata": {
+      "discovery": "temple treasury vaults",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770377781542_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Ko shi yi yahu ci ci.",
+    "metadata": {
+      "discovery": "temple treasury vaults",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770378763156",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "nufi",
+    "metadata": {
+      "discovery": "oracle consultation chambers",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770378763156_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "Iwai yahweh, nufi kawen.",
+    "metadata": {
+      "discovery": "oracle consultation chambers",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770379324812",
+    "language": "ghostlang",
+    "type": "inscription",
+    "text": "kahca",
+    "metadata": {
+      "discovery": "canal maintenance offices",
+      "gloss": "",
+      "meaning": "",
+      "confidence": "",
+      "gloss_updated_at": null
+    }
+  },
+  {
+    "id": "A1770379324812_S",
+    "language": "ghostlang",
+    "type": "sentence",
+    "text": "zix ame kahca yhews",
+    "metadata": {
+      "discovery": "canal maintenance offices",
       "gloss": "",
       "meaning": "",
       "confidence": "",
