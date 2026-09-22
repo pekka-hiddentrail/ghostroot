@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 import time
 from rich.console import Console
@@ -8,6 +9,7 @@ from rich.panel import Panel
 from rich.status import Status
 
 
+from ghostroot import beliefs as beliefs_store
 from ghostroot.config import load_settings
 from ghostroot.tools import (
     add_artifact,
@@ -20,7 +22,7 @@ from ghostroot.tools import (
     update_research_questions,
 )
 from ghostroot.agents.speaker import generate_artifact
-from ghostroot.agents.researcher import analyze_corpus
+from ghostroot.agents.researcher import analyze_corpus, update_word_beliefs
 from ghostroot.agents.context_researcher import analyze_contextual_fit
 
 
@@ -31,19 +33,23 @@ def run_speaker_only(count: int) -> None:
 
     console.print(Panel.fit(f"[bold]GHOSTROOT[/bold] Speaker-only mode ({count} runs)"))
     console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Word generator:[/dim] {s.word_generator}")
     console.print(f"[dim]Speaker model:[/dim] {s.speaker_model}")
+    console.print(f"[dim]Branches:[/dim] {', '.join(s.branches)}")
     console.print()
 
-    language = "ghostlang"
     total_artifacts = 0
 
     for run in range(1, count + 1):
-        console.print(f"[bold cyan]Run {run}/{count}[/bold cyan]")
-        
+        # Round-robin through branches so cognates accumulate evenly across
+        # descendant languages, instead of everything landing on one branch.
+        language = s.branches[(run - 1) % len(s.branches)]
+        console.print(f"[bold cyan]Run {run}/{count}[/bold cyan] [dim]({language})[/dim]")
+
         artifact_id = make_id("A")
-        
+
         console.print(f"  ID: {artifact_id}")
-        
+
         with console.status(
             "  [dim]Generating...[/dim]",
             spinner="dots",
@@ -55,6 +61,8 @@ def run_speaker_only(count: int) -> None:
                 branch=language,
                 artifact_id=artifact_id,
                 max_words=s.max_speaker_words,
+                word_generator=s.word_generator,
+                proto_lexicon_path=s.proto_lexicon_path,
             )
         
         # Save artifacts
@@ -99,8 +107,10 @@ def main() -> None:
 
     console.print(Panel.fit("[bold]GHOSTROOT[/bold] starting…"))
     console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Word generator:[/dim] {s.word_generator}")
     console.print(f"[dim]Speaker model:[/dim] {s.speaker_model}")
     console.print(f"[dim]Researcher model:[/dim] {s.researcher_model}")
+    console.print(f"[dim]Branches:[/dim] {', '.join(s.branches)}")
     console.print()
 
     # Step 0: Load corpus
@@ -110,7 +120,7 @@ def main() -> None:
     console.print()
 
     # Step 1: Speaker generates artifact
-    language = "ghostlang"
+    language = random.choice(s.branches)
     artifact_id = make_id("A")
     console.print(f"[bold]Step 1[/bold] Speaker generating new artifact [dim]{artifact_id}[/dim]…")
     t0 = time.perf_counter()
@@ -125,6 +135,8 @@ def main() -> None:
             branch=language,
             artifact_id=artifact_id,
             max_words=s.max_speaker_words,
+            word_generator=s.word_generator,
+            proto_lexicon_path=s.proto_lexicon_path,
     )
     dt = time.perf_counter() - t0
     console.print(f"[green]✓[/green] Speaker done in {dt:.2f}s")
@@ -160,7 +172,7 @@ def main() -> None:
     "[bold magenta]Researcher agent is analyzing the corpus…[/bold magenta]",
     spinner="dots",
     ):
-        note, new_questions, updated_questions, glosses = analyze_corpus(
+        note, new_questions, updated_questions = analyze_corpus(
             backend=s.backend,
             model=s.researcher_model,
             api_key=s.api_key,
@@ -173,7 +185,17 @@ def main() -> None:
     console.print(f"[green]✓[/green] Researcher done in {dt:.2f}s")
     console.print()
 
-    # Step 5: Update artifact glosses
+    # Step 5: Update word beliefs (full-corpus, evidence-accumulating lexeme
+    # interpretations) and sync them onto every occurrence of each lexeme
+    word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
+    glosses = update_word_beliefs(
+        artifacts=artifacts,
+        beliefs=word_beliefs,
+        backend=s.backend,
+        model=s.researcher_model,
+        api_key=s.api_key,
+    )
+    beliefs_store.save_beliefs(s.word_beliefs_path, word_beliefs)
     if glosses:
         console.print(f"[bold]Step 5[/bold] Updating {len(glosses)} artifact gloss(es)…")
         updated = update_artifact_glosses(s.artifacts_path, glosses)

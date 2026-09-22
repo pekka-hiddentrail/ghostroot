@@ -30,6 +30,11 @@ class Settings:
     api_key: Optional[str]
     ollama_bin: str
 
+    word_generator: str  # "llm" or "phonotactic"
+    proto_lexicon_path: Path  # hidden ground-truth root pool (gitignored)
+    word_beliefs_path: Path  # researcher's emergent, evolving interpretations (tracked)
+    branches: list[str]
+
     max_speaker_words: int = 6
     max_researcher_hypotheses: int = 3
 
@@ -73,6 +78,13 @@ def load_settings() -> Settings:
 
     ollama_bin = os.getenv("OLLAMA_BIN", "ollama").strip()
 
+    word_generator = os.getenv("GHOSTROOT_WORD_GENERATOR", "llm").strip().lower()
+    proto_lexicon_path = data_dir / "proto_lexicon.json"
+    word_beliefs_path = data_dir / "word_beliefs.json"
+
+    branches_raw = os.getenv("GHOSTROOT_BRANCHES", "ilvath,soruun,kethra")
+    branches = [b.strip() for b in branches_raw.split(",") if b.strip()]
+
     return Settings(
         project_root=project_root,
         data_dir=data_dir,
@@ -84,4 +96,8 @@ def load_settings() -> Settings:
         researcher_model=researcher_model,
         api_key=api_key,
         ollama_bin=ollama_bin,
+        word_generator=word_generator,
+        proto_lexicon_path=proto_lexicon_path,
+        word_beliefs_path=word_beliefs_path,
+        branches=branches,
     )
