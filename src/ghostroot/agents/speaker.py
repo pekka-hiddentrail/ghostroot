@@ -2,49 +2,19 @@ from __future__ import annotations
 
 import random
 import re
-import subprocess
 from typing import Any, Dict, List, Optional
-import json
-import urllib.request
-import urllib.error
 
-
-def _ollama_generate_http(model: str, prompt: str, timeout_s: int = 30) -> str:
-    url = "http://localhost:11434/api/generate"
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            # HARD caps / speed controls:
-            "num_predict": 40,          # ~30 tokens max for speaker
-            "temperature": 0.4,         # reduce rambling
-            "stop": ["\n\n", "###"],    # stop at first newline
-        },
-    }
-
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return (data.get("response") or "").strip()
-    except (urllib.error.URLError, TimeoutError) as e:
-        return f"[timeout/error] {e}"
+from ghostroot.llm import complete
 
 
 def generate_artifact(
     *,
-    ollama_bin: str,
+    backend: str,
     model: str,
     branch: str,
     artifact_id: str,
     max_words: int = 5,
+    api_key: Optional[str] = None,
     seed_discovery: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     discoveries = [
@@ -110,7 +80,20 @@ Do NOT include analysis, thinking, or explanations.
 Return only the inscription text.
 """.strip()
 
-    raw = _ollama_generate_http(model, prompt, timeout_s=30)
+    try:
+        raw = complete(
+            prompt,
+            backend=backend,
+            model=model,
+            api_key=api_key,
+            system=None,
+            max_tokens=40,
+            temperature=0.4,
+            timeout=30,
+        )
+    except RuntimeError as e:
+        raw = f"[error] {e}"
+    raw = raw.splitlines()[0] if raw.strip() else raw
 
     # Extract all words from response
     all_words = [w for w in raw.split() if w and len(w) > 1]

@@ -1,83 +1,10 @@
 from __future__ import annotations
 
-import json
-import urllib.request
-import urllib.error
 from collections import defaultdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import re
 
-
-SYSTEM_PROMPT = """You are a concise reasoning assistant.
-
-Rules:
-- Think silently. Do not show your reasoning process.
-- Output only the final answer unless explicitly asked for explanation.
-- If explanation is requested: max 4 bullets, no preambles, no repetition.
-- Be direct and precise."""
-
-
-def ask_ollama(
-    prompt: str,
-    model: str = "ghostroot-concise",
-    base_url: str = "http://localhost:11434",
-    timeout: int = 300,
-) -> str:
-    """
-    Call Ollama HTTP API with concise generation settings.
-    
-    Args:
-        prompt: User prompt
-        model: Model name
-        base_url: Ollama API base URL
-        timeout: Request timeout in seconds (default: 300)
-        
-    Returns:
-        Generated text response
-        
-    Raises:
-        RuntimeError: On HTTP errors or timeouts
-    """
-    url = f"{base_url}/api/generate"
-    
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "system": SYSTEM_PROMPT,
-        "stream": False,
-        "options": {
-            "temperature": 0.2,
-            "top_p": 0.8,
-            "top_k": 20,
-            "repeat_penalty": 1.12,
-            "num_predict": 350,
-            "num_ctx": 8192,
-        },
-        "stop": ["<|eot_id|>", "USER:", "ASSISTANT:"],
-    }
-    
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            if response.status != 200:
-                raise RuntimeError(f"Ollama API returned status {response.status}")
-            
-            data = json.loads(response.read().decode("utf-8"))
-            return data.get("response", "").strip()
-            
-    except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Ollama HTTP error {e.code}: {e.reason}") from e
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"Ollama connection failed: {e.reason}") from e
-    except TimeoutError as e:
-        raise RuntimeError(f"Ollama request timed out after {timeout}s") from e
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON response from Ollama: {e}") from e
+from ghostroot.llm import complete as ask_llm
 
 
 def _extract_word_contexts(artifacts: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
@@ -125,7 +52,9 @@ def analyze_contextual_fit(
     *,
     entry_id: str,
     artifacts: List[Dict[str, Any]],
+    backend: str = "ollama",
     model: str = "ghostroot-concise",
+    api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Analyze whether word interpretations fit the contexts they appear in.
@@ -186,7 +115,7 @@ Data:
 {analysis_data}
 """.strip()
     
-    raw = ask_ollama(prompt, model=model)
+    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key)
     
     note = {
         "id": entry_id,

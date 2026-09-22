@@ -4,8 +4,16 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
+
+
+_DEFAULT_MODELS = {
+    "ollama": ("qwen2.5:1.5b", "gemma:2b"),
+    "anthropic": ("claude-haiku-4-5-20251001", "claude-haiku-4-5-20251001"),
+    "groq": ("openai/gpt-oss-20b", "openai/gpt-oss-120b"),
+}
 
 
 @dataclass(frozen=True)
@@ -16,9 +24,10 @@ class Settings:
     research_log_path: Path
     research_questions_path: Path
 
-    backend: str  # "ollama" or "openai" (later)
-    ollama_speaker_model: str
-    ollama_researcher_model: str
+    backend: str  # "ollama", "anthropic", or "groq"
+    speaker_model: str
+    researcher_model: str
+    api_key: Optional[str]
     ollama_bin: str
 
     max_speaker_words: int = 6
@@ -40,8 +49,28 @@ def load_settings() -> Settings:
     research_questions_path = data_dir / "research_questions.json"
 
     backend = os.getenv("GHOSTROOT_BACKEND", "ollama").strip().lower()
-    ollama_speaker_model = os.getenv("OLLAMA_SPEAKER_MODEL", "qwen2.5:1.5b").strip()
-    ollama_researcher_model = os.getenv("OLLAMA_RESEARCHER_MODEL", "gemma:2b").strip()
+    if backend not in _DEFAULT_MODELS:
+        backend = "ollama"
+
+    default_speaker, default_researcher = _DEFAULT_MODELS[backend]
+
+    # Legacy env vars still work for the ollama backend.
+    legacy_speaker = os.getenv("OLLAMA_SPEAKER_MODEL") if backend == "ollama" else None
+    legacy_researcher = os.getenv("OLLAMA_RESEARCHER_MODEL") if backend == "ollama" else None
+
+    speaker_model = os.getenv(
+        "GHOSTROOT_SPEAKER_MODEL", legacy_speaker or default_speaker
+    ).strip()
+    researcher_model = os.getenv(
+        "GHOSTROOT_RESEARCHER_MODEL", legacy_researcher or default_researcher
+    ).strip()
+
+    api_key: Optional[str] = None
+    if backend == "anthropic":
+        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip() or None
+    elif backend == "groq":
+        api_key = os.getenv("GROQ_API_KEY", "").strip() or None
+
     ollama_bin = os.getenv("OLLAMA_BIN", "ollama").strip()
 
     return Settings(
@@ -51,7 +80,8 @@ def load_settings() -> Settings:
         research_log_path=research_log_path,
         research_questions_path=research_questions_path,
         backend=backend,
-        ollama_speaker_model=ollama_speaker_model,
-        ollama_researcher_model=ollama_researcher_model,
+        speaker_model=speaker_model,
+        researcher_model=researcher_model,
+        api_key=api_key,
         ollama_bin=ollama_bin,
     )

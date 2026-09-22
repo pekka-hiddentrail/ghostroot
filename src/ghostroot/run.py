@@ -30,7 +30,8 @@ def run_speaker_only(count: int) -> None:
     s = load_settings()
 
     console.print(Panel.fit(f"[bold]GHOSTROOT[/bold] Speaker-only mode ({count} runs)"))
-    console.print(f"[dim]Speaker model:[/dim] {s.ollama_speaker_model}")
+    console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Speaker model:[/dim] {s.speaker_model}")
     console.print()
 
     language = "ghostlang"
@@ -48,8 +49,9 @@ def run_speaker_only(count: int) -> None:
             spinner="dots",
         ):
             new_artifacts = generate_artifact(
-                ollama_bin=s.ollama_bin,
-                model=s.ollama_speaker_model,
+                backend=s.backend,
+                model=s.speaker_model,
+                api_key=s.api_key,
                 branch=language,
                 artifact_id=artifact_id,
                 max_words=s.max_speaker_words,
@@ -97,9 +99,8 @@ def main() -> None:
 
     console.print(Panel.fit("[bold]GHOSTROOT[/bold] starting…"))
     console.print(f"[dim]Backend:[/dim] {s.backend}")
-    console.print(f"[dim]Ollama bin:[/dim] {getattr(s, 'ollama_bin', 'ollama')}")
-    console.print(f"[dim]Speaker model:[/dim] {s.ollama_speaker_model}")
-    console.print(f"[dim]Researcher model:[/dim] {s.ollama_researcher_model}")
+    console.print(f"[dim]Speaker model:[/dim] {s.speaker_model}")
+    console.print(f"[dim]Researcher model:[/dim] {s.researcher_model}")
     console.print()
 
     # Step 0: Load corpus
@@ -118,8 +119,9 @@ def main() -> None:
         spinner="dots",
     ):
         new_artifacts = generate_artifact(
-            ollama_bin=s.ollama_bin,
-            model=s.ollama_speaker_model,
+            backend=s.backend,
+            model=s.speaker_model,
+            api_key=s.api_key,
             branch=language,
             artifact_id=artifact_id,
             max_words=s.max_speaker_words,
@@ -159,7 +161,9 @@ def main() -> None:
     spinner="dots",
     ):
         note, new_questions, updated_questions, glosses = analyze_corpus(
-            model=s.ollama_researcher_model,
+            backend=s.backend,
+            model=s.researcher_model,
+            api_key=s.api_key,
             entry_id=entry_id,
             artifacts=artifacts,
             existing_questions=existing_questions,
@@ -191,7 +195,9 @@ def main() -> None:
     spinner="dots",
     ):
         context_note = analyze_contextual_fit(
-            model=s.ollama_researcher_model,
+            backend=s.backend,
+            model=s.researcher_model,
+            api_key=s.api_key,
             entry_id=context_entry_id,
             artifacts=artifacts,
     )
@@ -232,9 +238,8 @@ def main() -> None:
     console.print(Panel.fit(
         f"[bold]GHOSTROOT[/bold] ran 1 cycle\n"
         f"Backend: {s.backend}\n"
-        f"Ollama bin: {s.ollama_bin}\n"
-        f"Speaker model: {s.ollama_speaker_model}\n"
-        f"Researcher model: {s.ollama_researcher_model}"
+        f"Speaker model: {s.speaker_model}\n"
+        f"Researcher model: {s.researcher_model}"
     ))
 
     console.print(Panel.fit(

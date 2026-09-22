@@ -50,8 +50,12 @@ ghostroot/
 ## Requirements
 
 - Python 3.11+
-- Ollama installed locally
-- A local model pulled (e.g. `qwen3:4b`)
+- One of the following LLM backends:
+  - **Ollama** (default) — installed locally with a model pulled (e.g. `qwen3:4b`)
+  - **Groq** — set `GHOSTROOT_BACKEND=groq` and `GROQ_API_KEY` in `.env`
+  - **Anthropic** — set `GHOSTROOT_BACKEND=anthropic` and `ANTHROPIC_API_KEY` in `.env`
+
+Model names can be overridden with `GHOSTROOT_SPEAKER_MODEL` / `GHOSTROOT_RESEARCHER_MODEL`; otherwise sensible defaults are used per backend.
 
 ---
 
