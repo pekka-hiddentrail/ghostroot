@@ -33,6 +33,7 @@ class Settings:
     word_generator: str  # "llm" or "phonotactic"
     proto_lexicon_path: Path  # hidden ground-truth root pool (gitignored)
     word_beliefs_path: Path  # researcher's emergent, evolving interpretations (tracked)
+    proto_hypotheses_path: Path  # cross-branch proto-root hypotheses, tracked across passes (tracked)
     branches: list[str]
 
     max_speaker_words: int = 6
@@ -81,6 +82,7 @@ def load_settings() -> Settings:
     word_generator = os.getenv("GHOSTROOT_WORD_GENERATOR", "llm").strip().lower()
     proto_lexicon_path = data_dir / "proto_lexicon.json"
     word_beliefs_path = data_dir / "word_beliefs.json"
+    proto_hypotheses_path = data_dir / "proto_hypotheses.json"
 
     branches_raw = os.getenv("GHOSTROOT_BRANCHES", "ilvath,soruun,kethra")
     branches = [b.strip() for b in branches_raw.split(",") if b.strip()]
@@ -99,5 +101,6 @@ def load_settings() -> Settings:
         word_generator=word_generator,
         proto_lexicon_path=proto_lexicon_path,
         word_beliefs_path=word_beliefs_path,
+        proto_hypotheses_path=proto_hypotheses_path,
         branches=branches,
     )

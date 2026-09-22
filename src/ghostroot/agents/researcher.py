@@ -6,7 +6,30 @@ import json
 import re
 
 from ghostroot import beliefs as beliefs_store
+from ghostroot import proto_hypotheses as hypotheses_store
 from ghostroot.llm import complete as ask_llm
+
+_HYPOTHESES_JSON_BLOCK = re.compile(r"```json\s*(\[.*?\])\s*```", re.DOTALL)
+
+
+def _extract_hypotheses_json(raw: str) -> tuple[str, List[Dict[str, Any]]]:
+    """
+    Pulls the trailing fenced JSON block of proto-root hypotheses out of the
+    LLM's markdown report and returns (report_without_the_block, hypotheses).
+    A markdown table is fine for a human to read once, but too unreliable to
+    parse back out pass after pass -- the JSON block is what actually lets
+    hypotheses persist and get confidence-tracked across passes instead of
+    silently vanishing whenever a later pass's report doesn't re-mention them.
+    """
+    match = _HYPOTHESES_JSON_BLOCK.search(raw)
+    if not match:
+        return raw, []
+    cleaned = (raw[: match.start()] + raw[match.end():]).strip()
+    try:
+        parsed = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return cleaned, []
+    return cleaned, parsed if isinstance(parsed, list) else []
 
 
 def _extract_tokens_from_artifacts(artifacts: List[Dict[str, Any]]) -> Dict[str, List[str]]:
@@ -292,6 +315,7 @@ def analyze_corpus(
     entry_id: str,
     artifacts: List[Dict[str, Any]],
     existing_questions: List[Dict[str, Any]],
+    proto_hypotheses: Optional[Dict[str, Any]] = None,
     backend: str = "ollama",
     model: str = "ghostroot-concise",
     api_key: Optional[str] = None,
@@ -309,18 +333,36 @@ def analyze_corpus(
 
     last_artifacts = artifacts[-12:]
 
+    if proto_hypotheses is None:
+        proto_hypotheses = hypotheses_store.empty_store()
+
+    prior_entries = list(proto_hypotheses.get("hypotheses", {}).values())
+    if prior_entries:
+        prior_summary = "\n".join(
+            f"- {e['root']} ({e.get('gloss', '')}): {e.get('meaning', '')} [confidence: {e.get('confidence')}]"
+            for e in prior_entries
+        )
+    else:
+        prior_summary = "(none yet -- this is the first pass)"
+
     prompt = f"""
 You are a historical linguist reconstructing a lost proto-language from descendant inscriptions.
 You have imperfect evidence. Be cautious and explicit about uncertainty.
 
 Tasks:
 1) Identify 2–5 possible cognate sets across descendant languages (similar-looking words).
-2) Propose up to {max_hypotheses} proto-root hypotheses.
+2) Propose up to {max_hypotheses} proto-root hypotheses. Where evidence still supports a
+   hypothesis you already proposed in a previous pass (listed below), REUSE its exact
+   root spelling and revise its confidence rather than inventing a new label for the
+   same idea. Only introduce a new root when it's genuinely a different one.
 3) Note 1–3 open questions to investigate next.
 
 Important:
 - Do NOT claim certainty, only confidence
 - Prefer short, structured output.
+
+Proto-root hypotheses from previous passes (reuse these labels if still applicable):
+{prior_summary}
 
 Output your findings using EXACTLY this markdown structure, in this order, with these
 exact headings every time (so this report can be diffed against past passes). If a
@@ -338,6 +380,13 @@ or reorder a heading:
 ## Open Questions
 1. <question>
 
+After the sections above, output a fenced ```json code block containing the SAME
+proto-root hypotheses (including any reused from previous passes that still hold) as a
+JSON array, one object per root, with EXACTLY these keys: "root", "gloss", "meaning",
+"reasoning", "confidence" (one of "low", "med", "high"). This is parsed by code to track
+confidence changes across passes, so it must be valid JSON and use the same root
+spellings as the table above.
+
 Evidence summary (token stats):
 {lang_summaries}
 
@@ -348,7 +397,27 @@ Recent artifacts (most recent last):
     # Cognate sets + up to max_hypotheses proto-root writeups + open
     # questions routinely runs past the previous 350-token default and got
     # cut off mid-sentence (visible in the saved research log).
-    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key, max_tokens=900)
+    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key, max_tokens=1100)
+
+    report, hypothesis_updates = _extract_hypotheses_json(raw)
+    for h in hypothesis_updates:
+        root = (h.get("root") or "").strip()
+        if not root:
+            continue
+        hypotheses_store.upsert_hypothesis(
+            proto_hypotheses,
+            root=root,
+            gloss=h.get("gloss", ""),
+            meaning=h.get("meaning", ""),
+            reasoning=h.get("reasoning", ""),
+            confidence=(h.get("confidence") or "low").strip().lower(),
+            pass_id=entry_id,
+        )
+
+    summary_section = (
+        "## Summary (all hypotheses tracked so far)\n"
+        f"{hypotheses_store.render_summary(proto_hypotheses)}\n\n---\n\n"
+    )
 
     # Generate structured research questions and try to answer existing ones
     new_questions, updated_questions = generate_research_questions(
@@ -363,7 +432,7 @@ Recent artifacts (most recent last):
     note = {
         "id": entry_id,
         "type": "research_note",
-        "summary": raw,
+        "summary": summary_section + report,
         "metadata": {
             "artifact_count": len(artifacts),
             "languages_seen": sorted(list(per_lang_tokens.keys())),

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 from ghostroot import beliefs
+from ghostroot import proto_hypotheses as hyp
 from ghostroot.agents import researcher
 
 
@@ -46,6 +47,79 @@ def test_first_time_proposal_is_never_treated_as_contradiction(monkeypatch):
     assert bucket["evidence_for"] == 1
     assert bucket["evidence_against"] == 0
     assert updates[0]["confidence"] > 0.0
+
+
+def _fake_corpus_report(hypotheses_json):
+    def fake_ask_llm(prompt, **kwargs):
+        if "proto-root hypotheses" in prompt.lower():
+            return (
+                "## Cognate Sets\n_None this pass._\n\n"
+                "## Proto-root Hypotheses\n_None this pass._\n\n"
+                "## Open Questions\n_None this pass._\n\n"
+                f"```json\n{json.dumps(hypotheses_json)}\n```"
+            )
+        return json.dumps({"answers": [], "new_questions": []})
+    return fake_ask_llm
+
+
+def test_analyze_corpus_persists_new_hypothesis_into_the_store(monkeypatch):
+    monkeypatch.setattr(
+        researcher, "ask_llm",
+        _fake_corpus_report([
+            {"root": "*wu", "gloss": "boundary", "meaning": "a limit or edge",
+             "reasoning": "repeated form", "confidence": "low"},
+        ]),
+    )
+
+    store = hyp.empty_store()
+    note, _, _ = researcher.analyze_corpus(
+        entry_id="R1", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    )
+
+    assert store["hypotheses"]["wu"]["confidence"] == "low"
+    assert "*wu*" in note["summary"]
+    assert "## Summary (all hypotheses tracked so far)" in note["summary"]
+
+
+def test_analyze_corpus_carries_forward_a_hypothesis_not_mentioned_this_pass(monkeypatch):
+    # Regression for: a hypothesis raised in an earlier pass used to vanish
+    # from the report the moment a later pass's freeform output didn't
+    # happen to re-mention it, even though nothing ever refuted it.
+    store = hyp.empty_store()
+    hyp.upsert_hypothesis(
+        store, root="dollar", gloss="money", meaning="unit of exchange",
+        reasoning="seen in tax contexts", confidence="med", pass_id="R1",
+    )
+
+    monkeypatch.setattr(researcher, "ask_llm", _fake_corpus_report([]))  # this pass proposes nothing new
+
+    note, _, _ = researcher.analyze_corpus(
+        entry_id="R2", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    )
+
+    assert "**dollar**" in note["summary"]  # still shown in the persistent summary
+
+
+def test_analyze_corpus_shows_confidence_arrow_when_a_hypothesis_is_revised(monkeypatch):
+    store = hyp.empty_store()
+    hyp.upsert_hypothesis(
+        store, root="dollar", gloss="money", meaning="unit of exchange",
+        reasoning="seen in tax contexts", confidence="low", pass_id="R1",
+    )
+
+    monkeypatch.setattr(
+        researcher, "ask_llm",
+        _fake_corpus_report([
+            {"root": "dollar", "gloss": "money", "meaning": "unit of exchange",
+             "reasoning": "reinforced across three branches", "confidence": "high"},
+        ]),
+    )
+
+    note, _, _ = researcher.analyze_corpus(
+        entry_id="R2", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    )
+
+    assert "low → high" in note["summary"]
 
 
 def test_contradiction_of_an_existing_belief_still_counts_against_it(monkeypatch):

@@ -11,6 +11,7 @@ from rich.status import Status
 
 
 from ghostroot import beliefs as beliefs_store
+from ghostroot import proto_hypotheses as hypotheses_store
 from ghostroot.config import load_settings
 from ghostroot.tools import (
     add_artifact,
@@ -88,7 +89,7 @@ def _pass_outcome(before, word_beliefs, new_questions, updated_questions, contex
     return "none"
 
 
-def run_research_pass(s, *, artifacts, existing_questions, word_beliefs):
+def run_research_pass(s, *, artifacts, existing_questions, word_beliefs, proto_hypotheses):
     """
     Runs one full analysis pass (researcher narrative + word-belief update +
     context check) over the given corpus and persists the results. Does not
@@ -108,8 +109,10 @@ def run_research_pass(s, *, artifacts, existing_questions, word_beliefs):
         entry_id=entry_id,
         artifacts=artifacts,
         existing_questions=existing_questions,
+        proto_hypotheses=proto_hypotheses,
         max_hypotheses=s.max_researcher_hypotheses,
     )
+    hypotheses_store.save_hypotheses(s.proto_hypotheses_path, proto_hypotheses)
 
     glosses = update_word_beliefs(
         artifacts=artifacts,
@@ -220,7 +223,9 @@ def _retry_wait_seconds(error_message: str, default: float) -> float:
     return default
 
 
-def _run_pass_with_retry(s, *, artifacts, existing_questions, word_beliefs, console, max_retries=5, backoff_s=15):
+def _run_pass_with_retry(
+    s, *, artifacts, existing_questions, word_beliefs, proto_hypotheses, console, max_retries=5, backoff_s=15
+):
     """
     Running several analysis passes back-to-back easily trips a provider's
     rate limit (seen live on Groq's free tier: 8000 tokens/min, exhausted
@@ -230,7 +235,8 @@ def _run_pass_with_retry(s, *, artifacts, existing_questions, word_beliefs, cons
     for attempt in range(1, max_retries + 1):
         try:
             return run_research_pass(
-                s, artifacts=artifacts, existing_questions=existing_questions, word_beliefs=word_beliefs
+                s, artifacts=artifacts, existing_questions=existing_questions,
+                word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses,
             )
         except RuntimeError as e:
             if attempt == max_retries:
@@ -265,6 +271,7 @@ def run_research_only(count: int) -> None:
 
     existing_questions = load_research_questions(s.research_questions_path)
     word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
+    proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
 
     # Every pass costs 1 point up front; a confirmed belief fully refunds it
     # (resets the streak), a contradiction only half-refunds it (still real
@@ -287,7 +294,7 @@ def run_research_only(count: int) -> None:
                 glosses,
             ) = _run_pass_with_retry(
                 s, artifacts=artifacts, existing_questions=existing_questions,
-                word_beliefs=word_beliefs, console=console,
+                word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses, console=console,
             )
 
         outcome = _pass_outcome(before, word_beliefs, new_questions, updated_questions, context_note)
@@ -420,6 +427,7 @@ def main() -> None:
         console.print(f"[dim]Loaded {len(existing_questions)} question(s), {unanswered_count} unanswered (will review ALL)[/dim]")
 
     word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
+    proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
 
     console.print(f"[bold]Step 4[/bold] Researcher analyzing corpus…")
     t0 = time.perf_counter()
@@ -437,7 +445,7 @@ def main() -> None:
             glosses,
         ) = _run_pass_with_retry(
             s, artifacts=artifacts, existing_questions=existing_questions,
-            word_beliefs=word_beliefs, console=console,
+            word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses, console=console,
         )
     dt = time.perf_counter() - t0
     console.print(f"[green]✓[/green] Researcher done in {dt:.2f}s")
