@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 import time
 from rich.console import Console
@@ -31,19 +32,23 @@ def run_speaker_only(count: int) -> None:
 
     console.print(Panel.fit(f"[bold]GHOSTROOT[/bold] Speaker-only mode ({count} runs)"))
     console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Word generator:[/dim] {s.word_generator}")
     console.print(f"[dim]Speaker model:[/dim] {s.speaker_model}")
+    console.print(f"[dim]Branches:[/dim] {', '.join(s.branches)}")
     console.print()
 
-    language = "ghostlang"
     total_artifacts = 0
 
     for run in range(1, count + 1):
-        console.print(f"[bold cyan]Run {run}/{count}[/bold cyan]")
-        
+        # Round-robin through branches so cognates accumulate evenly across
+        # descendant languages, instead of everything landing on one branch.
+        language = s.branches[(run - 1) % len(s.branches)]
+        console.print(f"[bold cyan]Run {run}/{count}[/bold cyan] [dim]({language})[/dim]")
+
         artifact_id = make_id("A")
-        
+
         console.print(f"  ID: {artifact_id}")
-        
+
         with console.status(
             "  [dim]Generating...[/dim]",
             spinner="dots",
@@ -55,6 +60,8 @@ def run_speaker_only(count: int) -> None:
                 branch=language,
                 artifact_id=artifact_id,
                 max_words=s.max_speaker_words,
+                word_generator=s.word_generator,
+                lexicon_path=s.lexicon_path,
             )
         
         # Save artifacts
@@ -99,8 +106,10 @@ def main() -> None:
 
     console.print(Panel.fit("[bold]GHOSTROOT[/bold] starting…"))
     console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Word generator:[/dim] {s.word_generator}")
     console.print(f"[dim]Speaker model:[/dim] {s.speaker_model}")
     console.print(f"[dim]Researcher model:[/dim] {s.researcher_model}")
+    console.print(f"[dim]Branches:[/dim] {', '.join(s.branches)}")
     console.print()
 
     # Step 0: Load corpus
@@ -110,7 +119,7 @@ def main() -> None:
     console.print()
 
     # Step 1: Speaker generates artifact
-    language = "ghostlang"
+    language = random.choice(s.branches)
     artifact_id = make_id("A")
     console.print(f"[bold]Step 1[/bold] Speaker generating new artifact [dim]{artifact_id}[/dim]…")
     t0 = time.perf_counter()
@@ -125,6 +134,8 @@ def main() -> None:
             branch=language,
             artifact_id=artifact_id,
             max_words=s.max_speaker_words,
+            word_generator=s.word_generator,
+            lexicon_path=s.lexicon_path,
     )
     dt = time.perf_counter() - t0
     console.print(f"[green]✓[/green] Speaker done in {dt:.2f}s")

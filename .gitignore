@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .env
 data/ground_truth.txt
+data/proto_lexicon.json
 data/*.db
 *.sqlite
 .DS_Store
