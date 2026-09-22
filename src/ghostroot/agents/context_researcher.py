@@ -32,7 +32,7 @@ def _extract_word_contexts(artifacts: List[Dict[str, Any]]) -> Dict[str, List[Di
     for a in artifacts:
         if a.get('type') == 'sentence':
             sentence = a.get('text', '')
-            context = a.get('metadata', {}).get('context', 'unknown')
+            context = a.get('metadata', {}).get('discovery', 'unknown')
             
             # Find which known words appear in this sentence
             tokens = [t.lower() for t in re.findall(r"[a-zA-Zʔʼ'-]+", sentence)]
