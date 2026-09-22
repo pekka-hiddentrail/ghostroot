@@ -1,6 +1,7 @@
 # src/ghostroot/tools.py
 from __future__ import annotations
 
+import datetime
 import json
 import time
 from pathlib import Path
@@ -62,6 +63,23 @@ def _format_metadata_line(key: str, value: Any) -> str:
     return f"- **{label}:** {value}"
 
 
+def _timestamp_prefix_from_entry_id(entry_id: str) -> str:
+    """
+    make_id() embeds an epoch-millis timestamp in every id. Reuse it (rather
+    than calling time.time() again here) so the filename timestamp always
+    matches the moment the entry was created, and pull it into a sortable,
+    human-readable prefix so the newest report in the directory listing is
+    obvious without decoding epoch millis.
+    """
+    digits = "".join(ch for ch in entry_id if ch.isdigit())
+    if not digits:
+        return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    millis = int(digits)
+    return datetime.datetime.fromtimestamp(
+        millis / 1000, tz=datetime.timezone.utc
+    ).strftime("%Y%m%dT%H%M%SZ")
+
+
 def write_research_log_entry(research_log_dir: Path, entry: Dict[str, Any]) -> Path:
     """
     Writes one research-log entry as its own markdown file, instead of
@@ -69,6 +87,12 @@ def write_research_log_entry(research_log_dir: Path, entry: Dict[str, Any]) -> P
     prose (that's what the researcher agents actually produce); a directory
     of one-file-per-entry is far easier to read and diff than a growing
     JSON blob.
+
+    Every entry type (research_note, context_analysis) is rendered from a
+    fixed section template (enforced via the LLM prompt, not parsed/validated
+    here) so consecutive reports of the same type stay diffable pass-to-pass.
+    The filename is timestamp-prefixed so `ls`/file explorers sort newest-last
+    and the newest report is identifiable at a glance.
 
     Returns the path written to.
     """
@@ -88,7 +112,8 @@ def write_research_log_entry(research_log_dir: Path, entry: Dict[str, Any]) -> P
     lines.append(summary)
     lines.append("")
 
-    path = research_log_dir / f"{entry_id}.md"
+    timestamp_prefix = _timestamp_prefix_from_entry_id(entry_id)
+    path = research_log_dir / f"{timestamp_prefix}_{entry_id}.md"
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
 

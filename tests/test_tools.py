@@ -6,6 +6,7 @@ import json
 import pytest
 
 from ghostroot.tools import (
+    _timestamp_prefix_from_entry_id,
     add_artifact,
     load_artifacts,
     load_json_list,
@@ -45,7 +46,8 @@ def test_write_research_log_entry_creates_one_markdown_file(tmp_path):
         },
     )
 
-    assert path == log_dir / "R1.md"
+    assert path.parent == log_dir
+    assert path.name.endswith("_R1.md")
     content = path.read_text(encoding="utf-8")
     assert content.startswith("# R1")
     assert "research_note" in content
@@ -60,7 +62,21 @@ def test_write_research_log_entry_creates_separate_files_per_entry(tmp_path):
     write_research_log_entry(log_dir, {"id": "C1", "type": "context_analysis", "summary": "b"})
 
     files = sorted(p.name for p in log_dir.iterdir())
-    assert files == ["C1.md", "R1.md"]
+    assert len(files) == 2
+    assert files[0].endswith("_C1.md")
+    assert files[1].endswith("_R1.md")
+
+
+def test_timestamp_prefix_from_entry_id_is_derived_from_embedded_millis():
+    # make_id() embeds epoch millis right after the prefix letter; same id
+    # should always produce the same timestamp prefix (no wall-clock reads).
+    assert _timestamp_prefix_from_entry_id("R1790108978239") == "20260922T202938Z"
+
+
+def test_timestamp_prefix_sorts_the_same_as_the_underlying_millis():
+    earlier = _timestamp_prefix_from_entry_id("R1000")
+    later = _timestamp_prefix_from_entry_id("R2000")
+    assert earlier < later
 
 
 def test_search_artifacts_finds_matches():

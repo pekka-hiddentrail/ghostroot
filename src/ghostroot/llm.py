@@ -2,9 +2,15 @@
 from __future__ import annotations
 
 import json
+import re
+import time
 import urllib.request
 import urllib.error
 from typing import Optional
+
+_RETRY_WAIT_PATTERN = re.compile(r"try again in ([\d.]+)s")
+RATE_LIMIT_MAX_RETRIES = 4
+RATE_LIMIT_DEFAULT_WAIT_S = 15.0
 
 
 SYSTEM_PROMPT = """You are a concise reasoning assistant.
@@ -48,6 +54,19 @@ def complete(
     )
 
 
+def _retry_wait_seconds(body: str, default: float) -> float:
+    """
+    Providers that rate-limit by reserving tokens against the *requested*
+    max_tokens ceiling (not actual usage, seen live on Groq's free tier)
+    often name the exact wait in the error body -- use that instead of a
+    fixed guess, which is liable to undershoot.
+    """
+    match = _RETRY_WAIT_PATTERN.search(body)
+    if match:
+        return float(match.group(1)) + 1.0  # small margin
+    return default
+
+
 def _post_json(url: str, payload: dict, headers: dict, timeout: int) -> dict:
     headers = {"User-Agent": "ghostroot/0.1", **headers}
     req = urllib.request.Request(
@@ -56,18 +75,23 @@ def _post_json(url: str, payload: dict, headers: dict, timeout: int) -> dict:
         headers=headers,
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"{url} HTTP error {e.code}: {body}") from e
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"{url} connection failed: {e.reason}") from e
-    except TimeoutError as e:
-        raise RuntimeError(f"{url} request timed out after {timeout}s") from e
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON response from {url}: {e}") from e
+
+    for attempt in range(1, RATE_LIMIT_MAX_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            if e.code == 429 and attempt < RATE_LIMIT_MAX_RETRIES:
+                time.sleep(_retry_wait_seconds(body, RATE_LIMIT_DEFAULT_WAIT_S))
+                continue
+            raise RuntimeError(f"{url} HTTP error {e.code}: {body}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"{url} connection failed: {e.reason}") from e
+        except TimeoutError as e:
+            raise RuntimeError(f"{url} request timed out after {timeout}s") from e
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Invalid JSON response from {url}: {e}") from e
 
 
 def _complete_ollama(

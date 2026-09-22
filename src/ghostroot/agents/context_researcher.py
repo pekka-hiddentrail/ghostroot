@@ -70,7 +70,12 @@ def analyze_contextual_fit(
         return {
             "id": entry_id,
             "type": "context_analysis",
-            "summary": "No glossed words found in sentence contexts yet. Need more data.",
+            "summary": (
+                "## Observations\n_None this pass._\n\n"
+                "## Contradictions\n_None this pass._\n\n"
+                "## Words Needing Reinterpretation\n_None this pass._\n\n"
+                "(No glossed words found in sentence contexts yet. Need more data.)"
+            ),
             "metadata": {
                 "words_analyzed": 0,
                 "contradictions_found": 0,
@@ -104,18 +109,30 @@ For each word below, check:
 2) Are there contradictions? (e.g., "offering" appearing only in astronomical contexts)
 3) Should confidence be adjusted based on context patterns?
 
-Provide:
-- 2-4 observations about contextual fit
-- Note any clear contradictions or inconsistencies
-- Suggest 1-2 words that may need reinterpretation
-
 Be concise and skeptical. Focus on problems.
+
+Output your findings using EXACTLY this markdown structure, in this order, with these
+exact headings every time (so this report can be diffed against past passes). If a
+section has nothing to report, write "_None this pass._" under it — never omit, rename,
+or reorder a heading:
+
+## Observations
+- <2-4 observations about contextual fit>
+
+## Contradictions
+- <clear contradictions or inconsistencies, or "_None this pass._">
+
+## Words Needing Reinterpretation
+1. <word> – <suggested reinterpretation, or "_None this pass._">
 
 Data:
 {analysis_data}
 """.strip()
-    
-    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key)
+
+    # Up to 10 words' worth of observations + contradictions + reinterpretation
+    # suggestions routinely ran past the previous 350-token default and got
+    # cut off mid-sentence.
+    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key, max_tokens=800)
     
     note = {
         "id": entry_id,

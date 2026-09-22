@@ -250,7 +250,17 @@ Recent artifacts:
 {artifacts[-8:]}
 """.strip()
 
-    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key)
+    # Reviews every existing question each cycle, so the expected output
+    # grows with the question count -- a fixed budget eventually truncates
+    # again as research_questions.json grows. Scale with it, same fix as
+    # the update_word_beliefs truncation bug.
+    raw = ask_llm(
+        prompt,
+        backend=backend,
+        model=model,
+        api_key=api_key,
+        max_tokens=max(600, 120 * len(existing_questions) + 300),
+    )
 
     # Try to parse JSON response
     try:
@@ -305,17 +315,28 @@ You have imperfect evidence. Be cautious and explicit about uncertainty.
 
 Tasks:
 1) Identify 2–5 possible cognate sets across descendant languages (similar-looking words).
-2) Propose up to {max_hypotheses} proto-root hypotheses in the form: 
-    * root = gloss
-    * meaning = english meaning/meanings
-    * reasoning: brief justification
-    * confidence: low/med/high
+2) Propose up to {max_hypotheses} proto-root hypotheses.
 3) Note 1–3 open questions to investigate next.
 
 Important:
 - Do NOT claim certainty, only confidence
 - Prefer short, structured output.
-- Use plain text with headings.
+
+Output your findings using EXACTLY this markdown structure, in this order, with these
+exact headings every time (so this report can be diffed against past passes). If a
+section has nothing to report, write "_None this pass._" under it — never omit, rename,
+or reorder a heading:
+
+## Cognate Sets
+1. **<form>** – <one line: which branches/artifacts it appears in>
+
+## Proto-root Hypotheses
+| Root | Gloss | Meaning | Reasoning | Confidence |
+|------|-------|---------|-----------|------------|
+| *root* | gloss | english meaning | brief justification | low/med/high |
+
+## Open Questions
+1. <question>
 
 Evidence summary (token stats):
 {lang_summaries}
@@ -324,7 +345,10 @@ Recent artifacts (most recent last):
 {last_artifacts}
 """.strip()
 
-    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key)
+    # Cognate sets + up to max_hypotheses proto-root writeups + open
+    # questions routinely runs past the previous 350-token default and got
+    # cut off mid-sentence (visible in the saved research log).
+    raw = ask_llm(prompt, backend=backend, model=model, api_key=api_key, max_tokens=900)
 
     # Generate structured research questions and try to answer existing ones
     new_questions, updated_questions = generate_research_questions(
