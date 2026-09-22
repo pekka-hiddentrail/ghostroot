@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import collections
+import json
 import random
 
 from ghostroot import protolang
@@ -23,8 +24,20 @@ def test_pool_roots_are_unique_and_shaped(tmp_path):
         assert r["role"] in ("structural", "content")
         if r["role"] == "content":
             assert r["domain"] in protolang.DOMAINS
+            assert r["pos"] in protolang.CONTENT_POS
         else:
             assert r["domain"] is None
+            assert r["pos"] in protolang.STRUCTURAL_POS
+
+
+def test_legacy_pool_without_pos_field_is_regenerated(tmp_path):
+    pool_path = tmp_path / "lex.json"
+    legacy = {"roots": [{"form": "abc", "role": "content", "domain": "trade"}]}  # no 'pos' key
+    pool_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    pool = protolang.load_or_create_pool(pool_path, size=10)
+    assert len(pool) == 10
+    assert all("pos" in r for r in pool)
 
 
 def test_mutate_for_branch_is_deterministic():
@@ -126,3 +139,47 @@ def test_generate_sentence_respects_word_count_bounds(tmp_path):
     )
     n_words = len(sentence.split())
     assert 2 <= n_words <= 4
+
+
+def test_branch_template_is_deterministic_and_valid():
+    template = protolang.branch_template("soruun")
+    assert template == protolang.branch_template("soruun")
+    assert template in protolang.CANDIDATE_TEMPLATES
+
+
+def test_choose_root_with_pos_filter_restricts_selection():
+    pool = [
+        {"form": "aa", "role": "content", "domain": "trade", "pos": "noun"},
+        {"form": "bb", "role": "content", "domain": "trade", "pos": "verb"},
+    ]
+    rng = random.Random(0)
+    for _ in range(20):
+        assert protolang.choose_root(pool, rng, pos="noun")["form"] == "aa"
+
+
+def test_choose_root_with_pos_filter_falls_back_when_no_match():
+    pool = [{"form": "aa", "role": "content", "domain": "trade", "pos": "noun"}]
+    rng = random.Random(0)
+    # no 'verb' roots exist -- must not crash, falls back to the full pool
+    result = protolang.choose_root(pool, rng, pos="verb")
+    assert result["form"] == "aa"
+
+
+def test_generate_sentence_follows_branch_word_order_template(tmp_path):
+    pool = protolang.load_or_create_pool(tmp_path / "lex.json", size=24)
+    branch = "soruun"
+    template = protolang.branch_template(branch)
+    n_words = len(template)
+    rng = random.Random(0)
+
+    sentence = protolang.generate_sentence(
+        branch=branch, pool=pool, min_words=n_words, max_words=n_words, rng=rng
+    )
+    words = sentence.split()
+    assert len(words) == n_words
+
+    forms_by_word = {protolang.mutate_for_branch(r["form"], branch): r for r in pool}
+    for word, expected_pos in zip(words, template):
+        root = forms_by_word.get(word)
+        assert root is not None, f"generated word {word!r} doesn't trace back to any pool root"
+        assert root["pos"] == expected_pos

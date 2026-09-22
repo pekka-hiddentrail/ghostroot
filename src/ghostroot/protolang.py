@@ -18,6 +18,24 @@ STRUCTURAL_WEIGHT = 3  # how much more often a structural root gets picked
 SAME_DOMAIN_PROB = 0.8  # how often a content root's discovery matches its domain
 FEEDBACK_CONFIDENCE_BOOST = 4.0  # weight multiplier at confidence=1.0 for the belief feedback loop
 
+STRUCTURAL_POS = ["article", "particle"]
+CONTENT_POS = ["noun", "verb"]
+CONTENT_POS_WEIGHTS = [0.7, 0.3]  # nouns outnumber verbs, as in most real lexicons
+
+# Candidate sentence frames, expressed as POS slot sequences. Each branch gets
+# one fixed frame (deterministically derived from its name, same trick as
+# _branch_rules), so word order is a real, discoverable property of a branch
+# rather than sentences being an unordered bag of independently-sampled words.
+CANDIDATE_TEMPLATES: List[List[str]] = [
+    ["article", "noun", "verb"],
+    ["verb", "noun", "article"],
+    ["noun", "verb"],
+    ["verb", "article", "noun"],
+    ["article", "noun", "verb", "particle"],
+    ["particle", "noun", "verb"],
+    ["noun", "particle", "verb"],
+]
+
 # Candidate sound changes a branch can inherit. Each branch gets a fixed,
 # deterministic subset derived from its name, so the same root always
 # surfaces the same way within that branch but differently across branches --
@@ -115,19 +133,21 @@ def load_or_create_pool(pool_path: Path, size: int = DEFAULT_POOL_SIZE) -> List[
     """
     Loads the persistent proto-root pool, generating and saving it on first use.
 
-    Each root carries a hidden `role` ("structural" or "content") and, for
-    content roots, a hidden `domain`. Neither is exposed to the researcher --
-    they only shape *how* words get generated and which discovery contexts
-    they tend to appear in. Meaning itself is never attached here; it's
-    entirely emergent, produced later by researcher agents interpreting how
-    each root behaves across the corpus.
+    Each root carries a hidden `role` ("structural" or "content"), a hidden
+    `pos` (part of speech: article/particle for structural, noun/verb for
+    content), and, for content roots, a hidden `domain`. None of this is
+    exposed to the researcher -- it only shapes *how* words get generated,
+    which sentence slot they can fill, and which discovery contexts they
+    tend to appear in. Meaning itself is never attached here; it's entirely
+    emergent, produced later by researcher agents interpreting how each root
+    behaves across the corpus.
     """
     if pool_path.exists():
         data = json.loads(pool_path.read_text(encoding="utf-8"))
         roots = data.get("roots", [])
-        if roots and isinstance(roots[0], dict):
+        if roots and isinstance(roots[0], dict) and "pos" in roots[0]:
             return roots
-        # Legacy (pre-role) pool format -- regenerate with the new schema.
+        # Legacy (pre-role or pre-pos) pool format -- regenerate with the current schema.
 
     rng = random.Random()
     seen = set()
@@ -141,9 +161,15 @@ def load_or_create_pool(pool_path: Path, size: int = DEFAULT_POOL_SIZE) -> List[
     roots = []
     for i, form in enumerate(forms):
         if i < max(1, round(size * STRUCTURAL_FRACTION)):
-            roots.append({"form": form, "role": "structural", "domain": None})
+            roots.append({
+                "form": form, "role": "structural", "domain": None,
+                "pos": rng.choice(STRUCTURAL_POS),
+            })
         else:
-            roots.append({"form": form, "role": "content", "domain": rng.choice(DOMAINS)})
+            roots.append({
+                "form": form, "role": "content", "domain": rng.choice(DOMAINS),
+                "pos": rng.choices(CONTENT_POS, weights=CONTENT_POS_WEIGHTS, k=1)[0],
+            })
     rng.shuffle(roots)
 
     pool_path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,6 +181,17 @@ def _branch_rules(branch: str, n_rules: int = 3) -> List[Tuple[str, str]]:
     seed = int(hashlib.sha256(branch.encode("utf-8")).hexdigest(), 16) % (2**32)
     rng = random.Random(seed)
     return rng.sample(CANDIDATE_RULES, k=min(n_rules, len(CANDIDATE_RULES)))
+
+
+def branch_template(branch: str) -> List[str]:
+    """
+    The fixed, deterministic sentence frame (POS slot order) for this branch.
+    Same hash-seeded-per-branch-name trick as _branch_rules, so word order is
+    a real, stable, discoverable property of a branch rather than random.
+    """
+    seed = int(hashlib.sha256((branch + ":template").encode("utf-8")).hexdigest(), 16) % (2**32)
+    rng = random.Random(seed)
+    return rng.choice(CANDIDATE_TEMPLATES)
 
 
 def mutate_for_branch(root: str, branch: str) -> str:
@@ -175,6 +212,7 @@ def choose_root(
     branch: Optional[str] = None,
     confidence_lookup: Optional[Dict[str, float]] = None,
     confidence_boost: float = FEEDBACK_CONFIDENCE_BOOST,
+    pos: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Picks a root, weighting structural roots higher -- real function words
@@ -185,17 +223,27 @@ def choose_root(
     has already converged on get reinforced further. This is the feedback
     loop: established vocabulary keeps getting reused instead of the corpus
     drifting through equally-likely fresh nonsense forever.
+
+    If `pos` is given, restricts the pick to roots tagged with that part of
+    speech (falls back to the full pool if none match, so a thin pool never
+    hard-fails a sentence slot).
     """
     rng = rng or random.Random()
+    candidates = pool
+    if pos is not None:
+        matching = [r for r in pool if r.get("pos") == pos]
+        if matching:
+            candidates = matching
+
     weights = []
-    for r in pool:
+    for r in candidates:
         w = float(STRUCTURAL_WEIGHT if r["role"] == "structural" else 1)
         if confidence_lookup and branch is not None:
             surface = mutate_for_branch(r["form"], branch)
             conf = confidence_lookup.get(surface, 0.0)
             w *= 1 + confidence_boost * conf
         weights.append(w)
-    return rng.choices(pool, weights=weights, k=1)[0]
+    return rng.choices(candidates, weights=weights, k=1)[0]
 
 
 def choose_discovery(root_entry: Dict[str, Any], rng: Optional[random.Random] = None) -> str:
@@ -218,9 +266,10 @@ def generate_word(
     pool: List[Dict[str, Any]],
     rng: Optional[random.Random] = None,
     confidence_lookup: Optional[Dict[str, float]] = None,
+    pos: Optional[str] = None,
 ) -> str:
     rng = rng or random.Random()
-    root_entry = choose_root(pool, rng, branch=branch, confidence_lookup=confidence_lookup)
+    root_entry = choose_root(pool, rng, branch=branch, confidence_lookup=confidence_lookup, pos=pos)
     return mutate_for_branch(root_entry["form"], branch)
 
 
@@ -233,10 +282,18 @@ def generate_sentence(
     rng: Optional[random.Random] = None,
     confidence_lookup: Optional[Dict[str, float]] = None,
 ) -> str:
+    """
+    Assembles a sentence by filling this branch's fixed POS slot template
+    (see branch_template), repeating/truncating it to the chosen length,
+    instead of sampling independent, unordered words -- so word order is a
+    real, discoverable property of the corpus rather than noise.
+    """
     rng = rng or random.Random()
     n_words = rng.randint(min_words, max(min_words, max_words))
+    template = branch_template(branch)
+    slots = (template * (n_words // len(template) + 1))[:n_words]
     words = [
-        generate_word(branch=branch, pool=pool, rng=rng, confidence_lookup=confidence_lookup)
-        for _ in range(n_words)
+        generate_word(branch=branch, pool=pool, rng=rng, confidence_lookup=confidence_lookup, pos=slot)
+        for slot in slots
     ]
     return " ".join(words)
