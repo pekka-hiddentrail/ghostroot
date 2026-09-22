@@ -21,7 +21,7 @@ class Settings:
     project_root: Path
     data_dir: Path
     artifacts_path: Path
-    research_log_path: Path
+    research_log_dir: Path  # one markdown file per entry, not one big JSON array
     research_questions_path: Path
 
     backend: str  # "ollama", "anthropic", or "groq"
@@ -50,7 +50,7 @@ def load_settings() -> Settings:
     project_root = Path(__file__).resolve().parents[2]  # .../ghostroot/
     data_dir = project_root / "data"
     artifacts_path = data_dir / "artifacts.json"
-    research_log_path = data_dir / "research_log.json"
+    research_log_dir = data_dir / "research_log"
     research_questions_path = data_dir / "research_questions.json"
 
     backend = os.getenv("GHOSTROOT_BACKEND", "ollama").strip().lower()
@@ -89,7 +89,7 @@ def load_settings() -> Settings:
         project_root=project_root,
         data_dir=data_dir,
         artifacts_path=artifacts_path,
-        research_log_path=research_log_path,
+        research_log_dir=research_log_dir,
         research_questions_path=research_questions_path,
         backend=backend,
         speaker_model=speaker_model,

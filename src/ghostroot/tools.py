@@ -55,10 +55,42 @@ def add_artifact(artifacts_path: Path, artifact: Dict[str, Any]) -> None:
     write_json_list(artifacts_path, artifacts)
 
 
-def append_research_log(research_log_path: Path, entry: Dict[str, Any]) -> None:
-    log = load_json_list(research_log_path)
-    log.append(entry)
-    write_json_list(research_log_path, log)
+def _format_metadata_line(key: str, value: Any) -> str:
+    label = key.replace("_", " ").capitalize()
+    if isinstance(value, list):
+        value = ", ".join(str(v) for v in value)
+    return f"- **{label}:** {value}"
+
+
+def write_research_log_entry(research_log_dir: Path, entry: Dict[str, Any]) -> Path:
+    """
+    Writes one research-log entry as its own markdown file, instead of
+    appending to one large JSON array. Each note is meant to be read as
+    prose (that's what the researcher agents actually produce); a directory
+    of one-file-per-entry is far easier to read and diff than a growing
+    JSON blob.
+
+    Returns the path written to.
+    """
+    research_log_dir.mkdir(parents=True, exist_ok=True)
+
+    entry_id = entry.get("id", "unknown")
+    entry_type = entry.get("type", "note")
+    metadata = entry.get("metadata", {}) or {}
+    summary = entry.get("summary", "")
+
+    lines = [f"# {entry_id} — {entry_type}", ""]
+    for key, value in metadata.items():
+        lines.append(_format_metadata_line(key, value))
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append(summary)
+    lines.append("")
+
+    path = research_log_dir / f"{entry_id}.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
 
 
 def search_artifacts(

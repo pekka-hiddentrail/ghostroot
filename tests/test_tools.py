@@ -7,11 +7,11 @@ import pytest
 
 from ghostroot.tools import (
     add_artifact,
-    append_research_log,
     load_artifacts,
     load_json_list,
     search_artifacts,
     update_artifact_glosses,
+    write_research_log_entry,
 )
 
 
@@ -33,12 +33,34 @@ def test_add_artifact_appends(tmp_path):
     assert artifacts[0]["id"] == "A1"
 
 
-def test_append_research_log_appends(tmp_path):
-    log_path = tmp_path / "research_log.json"
-    append_research_log(log_path, {"id": "R1", "type": "research_note", "summary": "hi"})
-    log = load_json_list(log_path)
-    assert len(log) == 1
-    assert log[0]["id"] == "R1"
+def test_write_research_log_entry_creates_one_markdown_file(tmp_path):
+    log_dir = tmp_path / "research_log"
+    path = write_research_log_entry(
+        log_dir,
+        {
+            "id": "R1",
+            "type": "research_note",
+            "summary": "cognate found: *gubseb* across all three branches",
+            "metadata": {"artifact_count": 5, "languages_seen": ["ilvath", "soruun"]},
+        },
+    )
+
+    assert path == log_dir / "R1.md"
+    content = path.read_text(encoding="utf-8")
+    assert content.startswith("# R1")
+    assert "research_note" in content
+    assert "Artifact count:** 5" in content
+    assert "Languages seen:** ilvath, soruun" in content
+    assert "cognate found: *gubseb*" in content
+
+
+def test_write_research_log_entry_creates_separate_files_per_entry(tmp_path):
+    log_dir = tmp_path / "research_log"
+    write_research_log_entry(log_dir, {"id": "R1", "type": "research_note", "summary": "a"})
+    write_research_log_entry(log_dir, {"id": "C1", "type": "context_analysis", "summary": "b"})
+
+    files = sorted(p.name for p in log_dir.iterdir())
+    assert files == ["C1.md", "R1.md"]
 
 
 def test_search_artifacts_finds_matches():

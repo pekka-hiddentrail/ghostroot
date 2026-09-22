@@ -13,13 +13,13 @@ from ghostroot import beliefs as beliefs_store
 from ghostroot.config import load_settings
 from ghostroot.tools import (
     add_artifact,
-    append_research_log,
     append_research_question,
     load_artifacts,
     load_research_questions,
     make_id,
     update_artifact_glosses,
     update_research_questions,
+    write_research_log_entry,
 )
 from ghostroot.agents.speaker import generate_artifact
 from ghostroot.agents.researcher import analyze_corpus, update_word_beliefs
@@ -231,9 +231,9 @@ def main() -> None:
 
     # Step 7: Save research notes
     console.print("[bold]Step 7[/bold] Saving research notes…")
-    append_research_log(s.research_log_path, note)
-    append_research_log(s.research_log_path, context_note)
-    console.print(f"[green]✓[/green] Saved word analysis and context analysis to {s.research_log_path}")
+    note_path = write_research_log_entry(s.research_log_dir, note)
+    context_path = write_research_log_entry(s.research_log_dir, context_note)
+    console.print(f"[green]✓[/green] Saved {note_path.name} and {context_path.name} to {s.research_log_dir}")
     console.print()
 
     # Step 8: Save research questions
