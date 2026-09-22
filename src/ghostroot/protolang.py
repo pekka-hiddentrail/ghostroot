@@ -6,13 +6,16 @@ import json
 import random
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 CONSONANTS = list("kptshmnlrwyzgdbfvj")
 VOWELS = list("aeiou")
 SYLLABLE_SHAPES = ["CV", "CVC", "V"]
 
 DEFAULT_POOL_SIZE = 24
+STRUCTURAL_FRACTION = 0.2  # share of roots that behave like function words
+STRUCTURAL_WEIGHT = 3  # how much more often a structural root gets picked
+SAME_DOMAIN_PROB = 0.8  # how often a content root's discovery matches its domain
 
 # Candidate sound changes a branch can inherit. Each branch gets a fixed,
 # deterministic subset derived from its name, so the same root always
@@ -31,6 +34,71 @@ CANDIDATE_RULES: List[Tuple[str, str]] = [
     ("g", "gh"),
 ]
 
+# Discovery contexts grouped into coarse semantic domains. Content roots are
+# hidden-tied to one domain (see load_or_create_pool); structural roots ignore
+# domain entirely and draw from all of them uniformly -- the same distinction
+# real function words vs. content words show in a corpus.
+DOMAIN_DISCOVERIES: Dict[str, List[str]] = {
+    "trade": [
+        "trade receipt scratched on wood",
+        "merchant accounting rooms",
+        "warehouse inventory stores",
+        "harbor customs offices",
+        "market regulation offices",
+        "river transport offices",
+    ],
+    "religious": [
+        "short prayer fragment",
+        "temple administrative archives",
+        "priesthood ritual storerooms",
+        "oracle consultation chambers",
+        "omen interpretation libraries",
+        "temple treasury vaults",
+    ],
+    "administrative": [
+        "palace record rooms",
+        "royal chancellery archives",
+        "provincial governor residences",
+        "law court record rooms",
+        "taxation registry offices",
+        "census enumeration records",
+        "diplomatic correspondence caches",
+        "treaty tablet deposits",
+    ],
+    "funerary": [
+        "tomb offering label",
+        "burial chamber deposits",
+        "cemetery grave goods",
+        "scribal school tablets",
+    ],
+    "military": [
+        "boundary marker inscription",
+        "military camp headquarters",
+        "frontier fort garrisons",
+        "city gate offices",
+        "city wall guardhouses",
+        "road checkpoint stations",
+    ],
+    "domestic": [
+        "graffiti near a dock",
+        "maker's mark on a tool",
+        "private household archives",
+        "healer practice archives",
+        "astronomical observation records",
+    ],
+    "agricultural": [
+        "canal maintenance offices",
+        "irrigation control stations",
+        "agricultural estate offices",
+        "workshop accounting archives",
+        "ration distribution offices",
+        "labor assignment records",
+    ],
+}
+
+ALL_DISCOVERIES: List[str] = [d for group in DOMAIN_DISCOVERIES.values() for d in group]
+DOMAINS: List[str] = list(DOMAIN_DISCOVERIES.keys())
+
 
 def _syllable(rng: random.Random) -> str:
     shape = rng.choice(SYLLABLE_SHAPES)
@@ -42,28 +110,40 @@ def _generate_root(rng: random.Random) -> str:
     return "".join(_syllable(rng) for _ in range(n_syllables))
 
 
-def load_or_create_pool(pool_path: Path, size: int = DEFAULT_POOL_SIZE) -> List[str]:
+def load_or_create_pool(pool_path: Path, size: int = DEFAULT_POOL_SIZE) -> List[Dict[str, Any]]:
     """
     Loads the persistent proto-root pool, generating and saving it on first use.
 
-    The pool holds bare phonological forms only -- no meaning is attached here.
-    Meaning is entirely emergent, produced later by researcher agents
-    interpreting how each root behaves across the corpus.
+    Each root carries a hidden `role` ("structural" or "content") and, for
+    content roots, a hidden `domain`. Neither is exposed to the researcher --
+    they only shape *how* words get generated and which discovery contexts
+    they tend to appear in. Meaning itself is never attached here; it's
+    entirely emergent, produced later by researcher agents interpreting how
+    each root behaves across the corpus.
     """
     if pool_path.exists():
         data = json.loads(pool_path.read_text(encoding="utf-8"))
         roots = data.get("roots", [])
-        if roots:
+        if roots and isinstance(roots[0], dict):
             return roots
+        # Legacy (pre-role) pool format -- regenerate with the new schema.
 
     rng = random.Random()
     seen = set()
-    roots: List[str] = []
-    while len(roots) < size:
+    forms: List[str] = []
+    while len(forms) < size:
         root = _generate_root(rng)
         if root not in seen:
             seen.add(root)
-            roots.append(root)
+            forms.append(root)
+
+    roots = []
+    for i, form in enumerate(forms):
+        if i < max(1, round(size * STRUCTURAL_FRACTION)):
+            roots.append({"form": form, "role": "structural", "domain": None})
+        else:
+            roots.append({"form": form, "role": "content", "domain": rng.choice(DOMAINS)})
+    rng.shuffle(roots)
 
     pool_path.parent.mkdir(parents=True, exist_ok=True)
     pool_path.write_text(json.dumps({"roots": roots}, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -87,16 +167,38 @@ def mutate_for_branch(root: str, branch: str) -> str:
     return form
 
 
-def generate_word(*, branch: str, pool: List[str], rng: Optional[random.Random] = None) -> str:
+def choose_root(pool: List[Dict[str, Any]], rng: Optional[random.Random] = None) -> Dict[str, Any]:
+    """Picks a root, weighting structural roots higher -- real function words
+    are used far more often than any single content word."""
     rng = rng or random.Random()
-    root = rng.choice(pool)
-    return mutate_for_branch(root, branch)
+    weights = [STRUCTURAL_WEIGHT if r["role"] == "structural" else 1 for r in pool]
+    return rng.choices(pool, weights=weights, k=1)[0]
+
+
+def choose_discovery(root_entry: Dict[str, Any], rng: Optional[random.Random] = None) -> str:
+    """
+    Structural roots ignore domain and scatter across all contexts uniformly.
+    Content roots mostly (not always) surface in their hidden domain, keeping
+    some realistic noise rather than a perfect tell.
+    """
+    rng = rng or random.Random()
+    if root_entry["role"] == "structural" or not root_entry.get("domain"):
+        return rng.choice(ALL_DISCOVERIES)
+    if rng.random() < SAME_DOMAIN_PROB:
+        return rng.choice(DOMAIN_DISCOVERIES[root_entry["domain"]])
+    return rng.choice(ALL_DISCOVERIES)
+
+
+def generate_word(*, branch: str, pool: List[Dict[str, Any]], rng: Optional[random.Random] = None) -> str:
+    rng = rng or random.Random()
+    root_entry = choose_root(pool, rng)
+    return mutate_for_branch(root_entry["form"], branch)
 
 
 def generate_sentence(
     *,
     branch: str,
-    pool: List[str],
+    pool: List[Dict[str, Any]],
     max_words: int = 5,
     min_words: int = 2,
     rng: Optional[random.Random] = None,

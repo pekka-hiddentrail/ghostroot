@@ -169,6 +169,7 @@ def update_artifact_glosses(
             artifact['metadata']['meaning'] = update.get('meaning', '')
             artifact['metadata']['gloss'] = update.get('gloss', '')
             artifact['metadata']['confidence'] = update['confidence']
+            artifact['metadata']['word_type'] = update.get('word_type', '')
             artifact['metadata']['gloss_updated_at'] = int(time.time())
             updated_count += 1
     

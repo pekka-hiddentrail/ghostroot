@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.status import Status
 
 
+from ghostroot import beliefs as beliefs_store
 from ghostroot.config import load_settings
 from ghostroot.tools import (
     add_artifact,
@@ -21,7 +22,7 @@ from ghostroot.tools import (
     update_research_questions,
 )
 from ghostroot.agents.speaker import generate_artifact
-from ghostroot.agents.researcher import analyze_corpus
+from ghostroot.agents.researcher import analyze_corpus, update_word_beliefs
 from ghostroot.agents.context_researcher import analyze_contextual_fit
 
 
@@ -61,7 +62,7 @@ def run_speaker_only(count: int) -> None:
                 artifact_id=artifact_id,
                 max_words=s.max_speaker_words,
                 word_generator=s.word_generator,
-                lexicon_path=s.lexicon_path,
+                proto_lexicon_path=s.proto_lexicon_path,
             )
         
         # Save artifacts
@@ -135,7 +136,7 @@ def main() -> None:
             artifact_id=artifact_id,
             max_words=s.max_speaker_words,
             word_generator=s.word_generator,
-            lexicon_path=s.lexicon_path,
+            proto_lexicon_path=s.proto_lexicon_path,
     )
     dt = time.perf_counter() - t0
     console.print(f"[green]✓[/green] Speaker done in {dt:.2f}s")
@@ -171,7 +172,7 @@ def main() -> None:
     "[bold magenta]Researcher agent is analyzing the corpus…[/bold magenta]",
     spinner="dots",
     ):
-        note, new_questions, updated_questions, glosses = analyze_corpus(
+        note, new_questions, updated_questions = analyze_corpus(
             backend=s.backend,
             model=s.researcher_model,
             api_key=s.api_key,
@@ -184,7 +185,17 @@ def main() -> None:
     console.print(f"[green]✓[/green] Researcher done in {dt:.2f}s")
     console.print()
 
-    # Step 5: Update artifact glosses
+    # Step 5: Update word beliefs (full-corpus, evidence-accumulating lexeme
+    # interpretations) and sync them onto every occurrence of each lexeme
+    word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
+    glosses = update_word_beliefs(
+        artifacts=artifacts,
+        beliefs=word_beliefs,
+        backend=s.backend,
+        model=s.researcher_model,
+        api_key=s.api_key,
+    )
+    beliefs_store.save_beliefs(s.word_beliefs_path, word_beliefs)
     if glosses:
         console.print(f"[bold]Step 5[/bold] Updating {len(glosses)} artifact gloss(es)…")
         updated = update_artifact_glosses(s.artifacts_path, glosses)

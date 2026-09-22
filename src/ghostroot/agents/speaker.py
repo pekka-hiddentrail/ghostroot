@@ -19,66 +19,22 @@ def generate_artifact(
     api_key: Optional[str] = None,
     seed_discovery: Optional[str] = None,
     word_generator: str = "llm",
-    lexicon_path: Optional[Path] = None,
+    proto_lexicon_path: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
-    discoveries = [
-        "trade receipt scratched on wood",
-        "boundary marker inscription",
-        "tomb offering label",
-        "short prayer fragment",
-        "graffiti near a dock",
-        "maker's mark on a tool",
-        "temple administrative archives",
-        "palace record rooms",
-        "scribal school tablets",
-        "private household archives",
-        "merchant accounting rooms",
-        "city gate offices",
-        "royal chancellery archives",
-        "provincial governor residences",
-        "law court record rooms",
-        "taxation registry offices",
-        "warehouse inventory stores",
-        "harbor customs offices",
-        "military camp headquarters",
-        "frontier fort garrisons",
-        "canal maintenance offices",
-        "irrigation control stations",
-        "agricultural estate offices",
-        "workshop accounting archives",
-        "priesthood ritual storerooms",
-        "oracle consultation chambers",
-        "healer practice archives",
-        "astronomical observation records",
-        "omen interpretation libraries",
-        "burial chamber deposits",
-        "cemetery grave goods",
-        "emergency hoard caches",
-        "abandoned city ruins",
-        "scribal workshop remains",
-        "palace construction records",
-        "diplomatic correspondence caches",
-        "treaty tablet deposits",
-        "census enumeration records",
-        "ration distribution offices",
-        "labor assignment records",
-        "market regulation offices",
-        "city wall guardhouses",
-        "temple treasury vaults",
-        "road checkpoint stations",
-        "river transport offices",
-        "judicial appeal archives"
-    ]
-
-    discovery = seed_discovery or random.choice(discoveries)
-
     if word_generator == "phonotactic":
-        if lexicon_path is None:
-            raise ValueError("lexicon_path is required when word_generator='phonotactic'")
-        pool = protolang.load_or_create_pool(lexicon_path)
-        single_word = protolang.generate_word(branch=branch, pool=pool)
+        if proto_lexicon_path is None:
+            raise ValueError("proto_lexicon_path is required when word_generator='phonotactic'")
+        pool = protolang.load_or_create_pool(proto_lexicon_path)
+        # The inscription's root decides the discovery context (structural
+        # roots scatter across all contexts, content roots mostly stay in
+        # their hidden domain) so context isn't just decoration -- it's weak,
+        # noisy evidence tied to what actually generated the word.
+        root_entry = protolang.choose_root(pool)
+        single_word = protolang.mutate_for_branch(root_entry["form"], branch)
+        discovery = seed_discovery or protolang.choose_discovery(root_entry)
         sentence = protolang.generate_sentence(branch=branch, pool=pool, max_words=max_words)
     else:
+        discovery = seed_discovery or random.choice(protolang.ALL_DISCOVERIES)
         prompt = f"""
 You are an extinct speaker of a daughter language called {branch}.
 Output EXACTLY ONE LINE. A sentence of 2–{max_words} nonsense words/strings of varying lengths.
