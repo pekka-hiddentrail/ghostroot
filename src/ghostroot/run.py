@@ -63,6 +63,7 @@ def run_speaker_only(count: int) -> None:
                 max_words=s.max_speaker_words,
                 word_generator=s.word_generator,
                 proto_lexicon_path=s.proto_lexicon_path,
+                word_beliefs_path=s.word_beliefs_path,
             )
         
         # Save artifacts
@@ -137,6 +138,7 @@ def main() -> None:
             max_words=s.max_speaker_words,
             word_generator=s.word_generator,
             proto_lexicon_path=s.proto_lexicon_path,
+            word_beliefs_path=s.word_beliefs_path,
     )
     dt = time.perf_counter() - t0
     console.print(f"[green]✓[/green] Speaker done in {dt:.2f}s")

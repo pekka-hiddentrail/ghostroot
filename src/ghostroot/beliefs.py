@@ -106,3 +106,22 @@ def top_interpretation(entry: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, A
 def occurrences_for(entry: Dict[str, Any], artifacts_by_id: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Every known artifact this lexeme has appeared in, across the whole corpus."""
     return [artifacts_by_id[aid] for aid in entry.get("artifact_ids", []) if aid in artifacts_by_id]
+
+
+def confidence_lookup(store: Dict[str, Any], branch: str) -> Dict[str, float]:
+    """
+    Maps surface form -> top interpretation confidence, for one branch.
+
+    This is the feedback-loop hook: the generator reweights root selection
+    using these confidences (see protolang.choose_root), so words the
+    researcher has actually converged on get reused more, instead of the
+    corpus drifting through equally-likely fresh nonsense forever.
+    """
+    lookup: Dict[str, float] = {}
+    for entry in store.get("entries", {}).values():
+        if entry.get("branch") != branch:
+            continue
+        top = top_interpretation(entry)
+        if top:
+            lookup[entry["form"]] = top[2]
+    return lookup

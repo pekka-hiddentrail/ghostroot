@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ghostroot import beliefs as beliefs_store
 from ghostroot import protolang
 from ghostroot.llm import complete
 
@@ -20,19 +21,31 @@ def generate_artifact(
     seed_discovery: Optional[str] = None,
     word_generator: str = "llm",
     proto_lexicon_path: Optional[Path] = None,
+    word_beliefs_path: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
     if word_generator == "phonotactic":
         if proto_lexicon_path is None:
             raise ValueError("proto_lexicon_path is required when word_generator='phonotactic'")
         pool = protolang.load_or_create_pool(proto_lexicon_path)
+
+        # Feedback loop: words the researcher has already converged on get
+        # reused more, instead of the corpus drifting through equally-likely
+        # fresh nonsense forever. No-op if there's no belief store yet.
+        confidence_lookup = None
+        if word_beliefs_path is not None:
+            store = beliefs_store.load_beliefs(word_beliefs_path)
+            confidence_lookup = beliefs_store.confidence_lookup(store, branch)
+
         # The inscription's root decides the discovery context (structural
         # roots scatter across all contexts, content roots mostly stay in
         # their hidden domain) so context isn't just decoration -- it's weak,
         # noisy evidence tied to what actually generated the word.
-        root_entry = protolang.choose_root(pool)
+        root_entry = protolang.choose_root(pool, branch=branch, confidence_lookup=confidence_lookup)
         single_word = protolang.mutate_for_branch(root_entry["form"], branch)
         discovery = seed_discovery or protolang.choose_discovery(root_entry)
-        sentence = protolang.generate_sentence(branch=branch, pool=pool, max_words=max_words)
+        sentence = protolang.generate_sentence(
+            branch=branch, pool=pool, max_words=max_words, confidence_lookup=confidence_lookup
+        )
     else:
         discovery = seed_discovery or random.choice(protolang.ALL_DISCOVERIES)
         prompt = f"""

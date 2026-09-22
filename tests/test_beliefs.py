@@ -106,3 +106,23 @@ def test_save_and_load_roundtrip(tmp_path):
 def test_load_beliefs_missing_file_returns_empty_store(tmp_path):
     loaded = beliefs.load_beliefs(tmp_path / "does_not_exist.json")
     assert loaded == beliefs.empty_store()
+
+
+def test_confidence_lookup_scoped_to_branch():
+    store = beliefs.empty_store()
+    soruun_entry = beliefs.ensure_entry(store, branch="soruun", form="foi", artifact_id="A1")
+    beliefs.record_interpretation(soruun_entry, word_type="noun: water", meaning="water", supports=True)
+    kethra_entry = beliefs.ensure_entry(store, branch="kethra", form="foi", artifact_id="A2")
+    beliefs.record_interpretation(kethra_entry, word_type="particle", meaning="?", supports=True)
+
+    lookup = beliefs.confidence_lookup(store, "soruun")
+    assert "foi" in lookup
+    assert lookup["foi"] == beliefs.confidence_of(soruun_entry["interpretations"]["noun: water"])
+    # kethra's belief about the same surface form must not leak into soruun's lookup
+    assert len(lookup) == 1
+
+
+def test_confidence_lookup_skips_entries_with_no_interpretation():
+    store = beliefs.empty_store()
+    beliefs.ensure_entry(store, branch="soruun", form="foi", artifact_id="A1")
+    assert beliefs.confidence_lookup(store, "soruun") == {}

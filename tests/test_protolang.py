@@ -65,6 +65,38 @@ def test_choose_root_weights_structural_higher():
     assert counts["structural"] > counts["content"]
 
 
+def test_choose_root_reinforces_high_confidence_lexeme():
+    pool = [
+        {"form": "aa", "role": "content", "domain": "trade"},
+        {"form": "bb", "role": "content", "domain": "trade"},
+    ]
+    branch = "soruun"
+    # 'aa' maps to some surface form under this branch's rules; look it up so
+    # the confidence entry actually keys onto the form the generator produces.
+    surface_aa = protolang.mutate_for_branch("aa", branch)
+    confidence_lookup = {surface_aa: 1.0}  # fully converged belief
+
+    rng = random.Random(0)
+    counts = collections.Counter(
+        protolang.choose_root(pool, rng, branch=branch, confidence_lookup=confidence_lookup)["form"]
+        for _ in range(2000)
+    )
+    assert counts["aa"] > counts["bb"]
+
+
+def test_choose_root_without_confidence_lookup_is_unaffected():
+    pool = [
+        {"form": "aa", "role": "content", "domain": "trade"},
+        {"form": "bb", "role": "content", "domain": "trade"},
+    ]
+    rng = random.Random(0)
+    counts = collections.Counter(
+        protolang.choose_root(pool, rng)["form"] for _ in range(2000)
+    )
+    # No feedback signal supplied -- both content roots should land roughly evenly.
+    assert abs(counts["aa"] - counts["bb"]) < 200
+
+
 def test_choose_discovery_content_root_mostly_matches_domain():
     root_entry = {"form": "x", "role": "content", "domain": "religious"}
     rng = random.Random(0)

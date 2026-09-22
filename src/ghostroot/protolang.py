@@ -16,6 +16,7 @@ DEFAULT_POOL_SIZE = 24
 STRUCTURAL_FRACTION = 0.2  # share of roots that behave like function words
 STRUCTURAL_WEIGHT = 3  # how much more often a structural root gets picked
 SAME_DOMAIN_PROB = 0.8  # how often a content root's discovery matches its domain
+FEEDBACK_CONFIDENCE_BOOST = 4.0  # weight multiplier at confidence=1.0 for the belief feedback loop
 
 # Candidate sound changes a branch can inherit. Each branch gets a fixed,
 # deterministic subset derived from its name, so the same root always
@@ -167,11 +168,33 @@ def mutate_for_branch(root: str, branch: str) -> str:
     return form
 
 
-def choose_root(pool: List[Dict[str, Any]], rng: Optional[random.Random] = None) -> Dict[str, Any]:
-    """Picks a root, weighting structural roots higher -- real function words
-    are used far more often than any single content word."""
+def choose_root(
+    pool: List[Dict[str, Any]],
+    rng: Optional[random.Random] = None,
+    *,
+    branch: Optional[str] = None,
+    confidence_lookup: Optional[Dict[str, float]] = None,
+    confidence_boost: float = FEEDBACK_CONFIDENCE_BOOST,
+) -> Dict[str, Any]:
+    """
+    Picks a root, weighting structural roots higher -- real function words
+    are used far more often than any single content word.
+
+    If `confidence_lookup` (branch -> surface form -> belief confidence, see
+    beliefs.confidence_lookup) and `branch` are given, roots the researcher
+    has already converged on get reinforced further. This is the feedback
+    loop: established vocabulary keeps getting reused instead of the corpus
+    drifting through equally-likely fresh nonsense forever.
+    """
     rng = rng or random.Random()
-    weights = [STRUCTURAL_WEIGHT if r["role"] == "structural" else 1 for r in pool]
+    weights = []
+    for r in pool:
+        w = float(STRUCTURAL_WEIGHT if r["role"] == "structural" else 1)
+        if confidence_lookup and branch is not None:
+            surface = mutate_for_branch(r["form"], branch)
+            conf = confidence_lookup.get(surface, 0.0)
+            w *= 1 + confidence_boost * conf
+        weights.append(w)
     return rng.choices(pool, weights=weights, k=1)[0]
 
 
@@ -189,9 +212,15 @@ def choose_discovery(root_entry: Dict[str, Any], rng: Optional[random.Random] = 
     return rng.choice(ALL_DISCOVERIES)
 
 
-def generate_word(*, branch: str, pool: List[Dict[str, Any]], rng: Optional[random.Random] = None) -> str:
+def generate_word(
+    *,
+    branch: str,
+    pool: List[Dict[str, Any]],
+    rng: Optional[random.Random] = None,
+    confidence_lookup: Optional[Dict[str, float]] = None,
+) -> str:
     rng = rng or random.Random()
-    root_entry = choose_root(pool, rng)
+    root_entry = choose_root(pool, rng, branch=branch, confidence_lookup=confidence_lookup)
     return mutate_for_branch(root_entry["form"], branch)
 
 
@@ -202,8 +231,12 @@ def generate_sentence(
     max_words: int = 5,
     min_words: int = 2,
     rng: Optional[random.Random] = None,
+    confidence_lookup: Optional[Dict[str, float]] = None,
 ) -> str:
     rng = rng or random.Random()
     n_words = rng.randint(min_words, max(min_words, max_words))
-    words = [generate_word(branch=branch, pool=pool, rng=rng) for _ in range(n_words)]
+    words = [
+        generate_word(branch=branch, pool=pool, rng=rng, confidence_lookup=confidence_lookup)
+        for _ in range(n_words)
+    ]
     return " ".join(words)
