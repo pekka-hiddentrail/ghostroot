@@ -144,12 +144,21 @@ Output ONLY a JSON array, one object per lexeme:
         if entry is None:
             continue
 
+        # "supports_existing" only makes sense as a judgment against a PRIOR
+        # interpretation. For a lexeme with no existing belief yet, a first
+        # proposal can't logically contradict anything -- treat it as
+        # support regardless of what the model answered, otherwise a first
+        # observation can land as evidence_for=0/evidence_against=1
+        # (confidence 0.0) purely from the model hedging on a fresh guess.
+        had_prior_interpretation = beliefs_store.top_interpretation(entry) is not None
+        supports = True if not had_prior_interpretation else bool(prop.get("supports_existing", True))
+
         beliefs_store.record_interpretation(
             entry,
             word_type=prop.get("word_type") or "unknown",
             meaning=prop.get("meaning", ""),
             gloss=prop.get("gloss", ""),
-            supports=bool(prop.get("supports_existing", True)),
+            supports=supports,
         )
 
         top = beliefs_store.top_interpretation(entry)
