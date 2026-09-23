@@ -65,7 +65,7 @@ def test_analyze_corpus_persists_new_hypothesis_into_the_store(monkeypatch):
         researcher, "ask_llm",
         _fake_corpus_report([
             {"root": "*wu", "gloss": "boundary", "meaning": "a limit or edge",
-             "reasoning": "repeated form", "confidence": "low"},
+             "reasoning": "repeated form", "branches": ["ilvath"]},
         ]),
     )
 
@@ -74,7 +74,7 @@ def test_analyze_corpus_persists_new_hypothesis_into_the_store(monkeypatch):
         entry_id="R1", artifacts=[], proto_hypotheses=store,
     )
 
-    assert store["hypotheses"]["wu"]["confidence"] == "low"
+    assert store["hypotheses"]["wu"]["confidence"] == 0.25
     assert "*wu*" in note["summary"]
     assert "## Summary (all hypotheses tracked so far)" in note["summary"]
 
@@ -86,7 +86,7 @@ def test_analyze_corpus_carries_forward_a_hypothesis_not_mentioned_this_pass(mon
     store = hyp.empty_store()
     hyp.upsert_hypothesis(
         store, root="dollar", gloss="money", meaning="unit of exchange",
-        reasoning="seen in tax contexts", confidence="med", pass_id="R1",
+        reasoning="seen in tax contexts", pass_id="R1", branches=["ilvath", "soruun"],
     )
 
     monkeypatch.setattr(researcher, "ask_llm", _fake_corpus_report([]))  # this pass proposes nothing new
@@ -102,14 +102,14 @@ def test_analyze_corpus_shows_confidence_arrow_when_a_hypothesis_is_revised(monk
     store = hyp.empty_store()
     hyp.upsert_hypothesis(
         store, root="dollar", gloss="money", meaning="unit of exchange",
-        reasoning="seen in tax contexts", confidence="low", pass_id="R1",
+        reasoning="seen in tax contexts", pass_id="R1", branches=["ilvath"],
     )
 
     monkeypatch.setattr(
         researcher, "ask_llm",
         _fake_corpus_report([
             {"root": "dollar", "gloss": "money", "meaning": "unit of exchange",
-             "reasoning": "reinforced across three branches", "confidence": "high",
+             "reasoning": "reinforced across three branches",
              "branches": ["ilvath", "soruun", "kethra"]},
         ]),
     )
@@ -118,19 +118,19 @@ def test_analyze_corpus_shows_confidence_arrow_when_a_hypothesis_is_revised(monk
         entry_id="R2", artifacts=[], proto_hypotheses=store,
     )
 
-    assert "low → high" in note["summary"]
+    assert "25% → 50%" in note["summary"]
 
 
-def test_analyze_corpus_caps_confidence_when_only_one_branch_attests_it(monkeypatch):
+def test_analyze_corpus_computes_low_confidence_from_a_single_branch(monkeypatch):
     # A hypothesis backed by a single occurrence in a single branch shouldn't
-    # be reportable as "high" confidence just because the model phrased it
-    # assertively -- confidence must be earned by cross-branch attestation.
+    # be reportable as high confidence just because the model phrased it
+    # assertively -- confidence is computed from branch count, never from
+    # anything the LLM asserts.
     monkeypatch.setattr(
         researcher, "ask_llm",
         _fake_corpus_report([
             {"root": "*wu", "gloss": "boundary", "meaning": "a limit or edge",
-             "reasoning": "single occurrence", "confidence": "high",
-             "branches": ["ilvath"]},
+             "reasoning": "single occurrence", "branches": ["ilvath"]},
         ]),
     )
 
@@ -139,7 +139,7 @@ def test_analyze_corpus_caps_confidence_when_only_one_branch_attests_it(monkeypa
         entry_id="R1", artifacts=[], proto_hypotheses=store,
     )
 
-    assert store["hypotheses"]["wu"]["confidence"] == "low"
+    assert store["hypotheses"]["wu"]["confidence"] == 0.25
 
 
 def test_disagreement_with_a_different_word_type_penalizes_the_old_belief_not_the_new_one(monkeypatch):

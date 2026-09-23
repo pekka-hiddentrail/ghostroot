@@ -254,7 +254,7 @@ def analyze_corpus(
     if prior_entries:
         prior_summary = "\n".join(
             f"- {e['root']} ({e.get('gloss', '')}): {e.get('meaning', '')} "
-            f"[confidence: {e.get('confidence')}, branches so far: {', '.join(e.get('branches') or []) or 'none recorded'}]"
+            f"[branches attested so far: {', '.join(e.get('branches') or []) or 'none recorded'}]"
             for e in prior_entries
         )
     else:
@@ -268,12 +268,14 @@ Tasks:
 1) Identify 2–5 possible cognate sets across descendant languages (similar-looking words).
 2) Propose up to {max_hypotheses} proto-root hypotheses. Where evidence still supports a
    hypothesis you already proposed in a previous pass (listed below), REUSE its exact
-   root spelling and revise its confidence rather than inventing a new label for the
-   same idea. Only introduce a new root when it's genuinely a different one.
+   root spelling rather than inventing a new label for the same idea. Only introduce a
+   new root when it's genuinely a different one.
 3) Note 1–3 open questions to investigate next.
 
 Important:
-- Do NOT claim certainty, only confidence
+- Do NOT claim certainty. Confidence for each hypothesis is computed by code from how
+  many distinct branches actually attest it -- you do not report a confidence level
+  yourself, just the branches you have real textual evidence from.
 - Prefer short, structured output.
 
 Proto-root hypotheses from previous passes (reuse these labels if still applicable):
@@ -288,9 +290,9 @@ or reorder a heading:
 1. **<form>** – <one line: which branches/artifacts it appears in>
 
 ## Proto-root Hypotheses
-| Root | Gloss | Meaning | Reasoning | Confidence |
-|------|-------|---------|-----------|------------|
-| *root* | gloss | english meaning | brief justification | low/med/high |
+| Root | Gloss | Meaning | Reasoning |
+|------|-------|---------|-----------|
+| *root* | gloss | english meaning | brief justification |
 
 ## Open Questions
 1. <question>
@@ -298,14 +300,10 @@ or reorder a heading:
 After the sections above, output a fenced ```json code block containing the SAME
 proto-root hypotheses (including any reused from previous passes that still hold) as a
 JSON array, one object per root, with EXACTLY these keys: "root", "gloss", "meaning",
-"reasoning", "confidence" (one of "low", "med", "high"), "branches" (a JSON array of
-EVERY branch name where this root is actually attested as evidence -- not where you
-merely suspect it might apply). Your stated confidence will be capped by code based on
-how many distinct branches you list, so listing only one branch caps this hypothesis at
-"low" regardless of what you write here -- do not inflate "branches" to work around
-that, list only branches you have real textual evidence from. This is parsed by code to
-track confidence changes across passes, so it must be valid JSON and use the same root
-spellings as the table above.
+"reasoning", "branches" (a JSON array of EVERY branch name where this root is actually
+attested as evidence -- not where you merely suspect it might apply; do not inflate this
+list, confidence is computed from it). This is parsed by code to track hypotheses across
+passes, so it must be valid JSON and use the same root spellings as the table above.
 
 Evidence summary (token stats):
 {lang_summaries}
@@ -332,7 +330,6 @@ Recent artifacts (most recent last):
             gloss=h.get("gloss", ""),
             meaning=h.get("meaning", ""),
             reasoning=h.get("reasoning", ""),
-            confidence=(h.get("confidence") or "low").strip().lower(),
             branches=branches,
             pass_id=entry_id,
         )

@@ -13,26 +13,21 @@ from typing import Any, Dict, List, Optional
 # cumulative counterpart: every hypothesis the researcher has proposed stays
 # tracked here across passes, so the research note can always show "where we
 # stand", not just "what came up this time".
-_CONFIDENCE_RANK = {"low": 0, "med": 1, "medium": 1, "high": 2}
-_RANK_TO_CONFIDENCE = {0: "low", 1: "med", 2: "high"}
 
-# A hypothesis's confidence is capped by how many distinct branches actually
-# attest it, not by how confident the LLM's wording sounds -- otherwise a
-# root seen exactly once, in one branch, can get called "high" purely
-# because the model phrased its reasoning assertively. This mirrors the
-# evidence-based design already used for word_beliefs.py (confidence comes
-# from evidence_for/evidence_against counts, never asserted directly).
-_MAX_RANK_FOR_BRANCH_COUNT = {0: 0, 1: 0, 2: 1}  # 3+ branches: no cap (rank 2, "high")
-
-
-def _max_rank_for_branch_count(branch_count: int) -> int:
-    return _MAX_RANK_FOR_BRANCH_COUNT.get(branch_count, 2)
+# Confidence is a plain percentage computed from how many distinct branches
+# attest a root, using the exact same evidence-based formula as
+# beliefs.confidence_of() (n / (n + prior strength)): 1 branch -> 25%, 2 ->
+# 40%, 3 -> 50%, 9 -> 75%. The LLM is never asked for (or allowed to assert)
+# a confidence value -- discrete low/med/high labels hide how thin "low" or
+# how thick "high" actually is, and a self-reported label needed capping
+# anyway, which made asking for it pointless work. Branch count is treated
+# here the way evidence_for is treated in beliefs.py: real evidence, not an
+# opinion.
+CONFIDENCE_PRIOR_STRENGTH = 3
 
 
-def _cap_confidence(confidence: str, branch_count: int) -> str:
-    requested_rank = _CONFIDENCE_RANK.get((confidence or "").strip().lower(), 0)
-    capped_rank = min(requested_rank, _max_rank_for_branch_count(branch_count))
-    return _RANK_TO_CONFIDENCE[capped_rank]
+def _confidence_from_branch_count(branch_count: int) -> float:
+    return round(branch_count / (branch_count + CONFIDENCE_PRIOR_STRENGTH), 3)
 
 
 def empty_store() -> Dict[str, Any]:
@@ -73,28 +68,26 @@ def upsert_hypothesis(
     gloss: str,
     meaning: str,
     reasoning: str,
-    confidence: str,
     branches: Optional[List[str]] = None,
     pass_id: str,
 ) -> Dict[str, Any]:
     """
-    Insert or update a proto-root hypothesis. `confidence` is capped by the
-    number of distinct branches in `branches` (see _cap_confidence) before
-    being stored, so the LLM's self-reported label is a ceiling suggestion,
-    not the final word. `prior_confidence` is set only when the FINAL,
-    capped confidence actually changes level (so a rendered "low -> med"
-    arrow reflects real movement, not a repeat of the same guess), and
-    clears back to None on a pass that reaffirms the same level.
+    Insert or update a proto-root hypothesis. `confidence` is always computed
+    from the number of distinct branches in `branches`, never taken from the
+    LLM. `prior_confidence` is set only when the computed confidence actually
+    changes (so a rendered "25% -> 50%" arrow reflects real movement, i.e. a
+    newly-attested branch), and clears back to None on a pass that reaffirms
+    the same branch count.
     """
     key = _normalize_root(root)
     existing = store["hypotheses"].get(key)
 
     branch_count = len(set(branches or []))
-    capped_confidence = _cap_confidence(confidence, branch_count)
+    confidence = _confidence_from_branch_count(branch_count)
 
     first_seen_pass = existing["first_seen_pass"] if existing else pass_id
-    prior_confidence: Optional[str] = None
-    if existing and existing.get("confidence") != capped_confidence:
+    prior_confidence: Optional[float] = None
+    if existing and existing.get("confidence") != confidence:
         prior_confidence = existing["confidence"]
 
     entry = {
@@ -102,7 +95,7 @@ def upsert_hypothesis(
         "gloss": gloss,
         "meaning": meaning,
         "reasoning": reasoning,
-        "confidence": capped_confidence,
+        "confidence": confidence,
         "prior_confidence": prior_confidence,
         "branches": sorted(set(branches or [])),
         "first_seen_pass": first_seen_pass,
@@ -112,12 +105,26 @@ def upsert_hypothesis(
     return entry
 
 
+def _format_pct(confidence: Any) -> str:
+    try:
+        return f"{float(confidence) * 100:.0f}%"
+    except (TypeError, ValueError):
+        return str(confidence)
+
+
 def confidence_display(entry: Dict[str, Any]) -> str:
     prior = entry.get("prior_confidence")
-    current = entry.get("confidence", "")
-    if prior and prior != current:
-        return f"{prior} → {current}"
-    return current
+    current = entry.get("confidence", 0.0)
+    if prior is not None and prior != current:
+        return f"{_format_pct(prior)} → {_format_pct(current)}"
+    return _format_pct(current)
+
+
+def _as_float(confidence: Any) -> float:
+    try:
+        return float(confidence)
+    except (TypeError, ValueError):
+        return 0.0  # tolerates legacy low/med/high strings from before this scheme
 
 
 def render_summary(store: Dict[str, Any]) -> str:
@@ -131,7 +138,7 @@ def render_summary(store: Dict[str, Any]) -> str:
     if not entries:
         return "_No proto-root hypotheses tracked yet._"
 
-    entries.sort(key=lambda e: (-_CONFIDENCE_RANK.get((e.get("confidence") or "").lower(), 0), e.get("root", "")))
+    entries.sort(key=lambda e: (-_as_float(e.get("confidence")), e.get("root", "")))
 
     lines = []
     for e in entries:
