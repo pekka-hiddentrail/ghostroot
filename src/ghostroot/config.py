@@ -36,7 +36,8 @@ class Settings:
     proto_hypotheses_path: Path  # cross-branch proto-root hypotheses, tracked across passes (tracked)
     branches: list[str]
 
-    max_speaker_words: int = 6
+    min_speaker_words: int = 4
+    max_speaker_words: int = 9
     max_researcher_hypotheses: int = 3
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import random
 import re
 import sys
@@ -28,6 +29,12 @@ from ghostroot.agents.context_researcher import analyze_contextual_fit
 RESEARCH_FRUSTRATION_LIMIT = 3.0  # accumulated frustration before giving up on a batch
 CONFIRMATION_RELIEF = 1.0  # a reinforced (or brand-new) belief fully offsets a pass's cost
 CONTRADICTION_RELIEF = 0.5  # a revised belief is real work too, but only half as satisfying
+
+# Every new-word run introduces one fresh coinage; without deliberate
+# reinforcement, vocabulary gets coined faster than the researcher can ever
+# accumulate repeat evidence on any single word. For every 4 new words,
+# generate at least 5 more sentences that reuse only already-attested words.
+REINFORCEMENT_SENTENCES_PER_NEW_WORD = 1.25
 
 
 def _belief_snapshot(word_beliefs) -> dict:
@@ -182,6 +189,100 @@ def run_research_pass(s, *, artifacts, word_beliefs, proto_hypotheses):
     return artifacts, note, context_note, glosses
 
 
+def _attested_forms(artifacts, branch) -> set:
+    """Surface forms already present as inscriptions in this branch's corpus."""
+    return {
+        a["text"].strip().lower()
+        for a in artifacts
+        if a.get("type") == "inscription" and a.get("language") == branch and a.get("text")
+    }
+
+
+def _bootstrap_words(s, console, count: int) -> int:
+    """
+    Generates `count` new-word runs (round-robin across branches), then a
+    further REINFORCEMENT_SENTENCES_PER_NEW_WORD * count sentence-only runs
+    that reuse only words already attested in the corpus for their branch --
+    so a batch of new vocabulary gets reinforced with real repeat evidence
+    instead of the corpus drifting through fresh coinages every time.
+    Reinforcement only applies to the phonotactic generator (it needs a
+    structural word pool to restrict); llm mode skips straight to done.
+
+    Returns the total number of artifacts generated (both phases).
+    """
+    total_artifacts = 0
+
+    for run in range(1, count + 1):
+        # Round-robin through branches so cognates accumulate evenly across
+        # descendant languages, instead of everything landing on one branch.
+        language = s.branches[(run - 1) % len(s.branches)]
+        console.print(f"[bold cyan]Run {run}/{count}[/bold cyan] [dim]({language})[/dim]")
+
+        artifact_id = make_id("A")
+        console.print(f"  ID: {artifact_id}")
+
+        with console.status("  [dim]Generating...[/dim]", spinner="dots"):
+            new_artifacts = generate_artifact(
+                backend=s.backend,
+                model=s.speaker_model,
+                api_key=s.api_key,
+                branch=language,
+                artifact_id=artifact_id,
+                max_words=s.max_speaker_words,
+                min_words=s.min_speaker_words,
+                word_generator=s.word_generator,
+                proto_lexicon_path=s.proto_lexicon_path,
+                word_beliefs_path=s.word_beliefs_path,
+            )
+
+        for art in new_artifacts:
+            add_artifact(s.artifacts_path, art)
+            console.print(f"  [green]✓[/green] {art['type']}: {art['text']}")
+            total_artifacts += 1
+
+        console.print()
+
+    if s.word_generator != "phonotactic":
+        return total_artifacts
+
+    reinforcement_count = math.ceil(count * REINFORCEMENT_SENTENCES_PER_NEW_WORD)
+    console.print(
+        f"[bold]Reinforcement[/bold] Generating {reinforcement_count} sentence(s) "
+        f"reusing already-attested words…"
+    )
+    artifacts = load_artifacts(s.artifacts_path)
+
+    for run in range(1, reinforcement_count + 1):
+        language = s.branches[(run - 1) % len(s.branches)]
+        attested = _attested_forms(artifacts, language)
+        artifact_id = make_id("A")
+
+        with console.status("  [dim]Generating...[/dim]", spinner="dots"):
+            new_artifacts = generate_artifact(
+                backend=s.backend,
+                model=s.speaker_model,
+                api_key=s.api_key,
+                branch=language,
+                artifact_id=artifact_id,
+                max_words=s.max_speaker_words,
+                min_words=s.min_speaker_words,
+                word_generator=s.word_generator,
+                proto_lexicon_path=s.proto_lexicon_path,
+                word_beliefs_path=s.word_beliefs_path,
+                reinforcement_only=True,
+                attested_forms=attested,
+            )
+
+        for art in new_artifacts:
+            add_artifact(s.artifacts_path, art)
+            artifacts.append(art)  # keep local view in sync for later iterations
+            console.print(f"  [green]✓[/green] {art['type']} ({language}): {art['text']}")
+            total_artifacts += 1
+
+    console.print()
+    return total_artifacts
+
+
 def run_speaker_only(count: int) -> None:
     """Run only the speaker agent to generate artifacts."""
     console = Console()
@@ -194,45 +295,12 @@ def run_speaker_only(count: int) -> None:
     console.print(f"[dim]Branches:[/dim] {', '.join(s.branches)}")
     console.print()
 
-    total_artifacts = 0
-
-    for run in range(1, count + 1):
-        # Round-robin through branches so cognates accumulate evenly across
-        # descendant languages, instead of everything landing on one branch.
-        language = s.branches[(run - 1) % len(s.branches)]
-        console.print(f"[bold cyan]Run {run}/{count}[/bold cyan] [dim]({language})[/dim]")
-
-        artifact_id = make_id("A")
-
-        console.print(f"  ID: {artifact_id}")
-
-        with console.status(
-            "  [dim]Generating...[/dim]",
-            spinner="dots",
-        ):
-            new_artifacts = generate_artifact(
-                backend=s.backend,
-                model=s.speaker_model,
-                api_key=s.api_key,
-                branch=language,
-                artifact_id=artifact_id,
-                max_words=s.max_speaker_words,
-                word_generator=s.word_generator,
-                proto_lexicon_path=s.proto_lexicon_path,
-                word_beliefs_path=s.word_beliefs_path,
-            )
-
-        # Save artifacts
-        for art in new_artifacts:
-            add_artifact(s.artifacts_path, art)
-            console.print(f"  [green]✓[/green] {art['type']}: {art['text']}")
-            total_artifacts += 1
-
-        console.print()
+    total_artifacts = _bootstrap_words(s, console, count)
 
     console.print(Panel.fit(
         f"[bold green]Complete![/bold green]\n"
-        f"Generated {total_artifacts} artifacts across {count} runs\n"
+        f"Generated {total_artifacts} artifacts across {count} new-word run(s) "
+        f"(plus reinforcement sentences)\n"
         f"Saved to: {s.artifacts_path}"
     ))
 
@@ -388,25 +456,10 @@ def run_full_cycles(*, cycles: int, words: int, rounds: int) -> None:
     for cycle_num in range(1, cycles + 1):
         console.print(Panel.fit(f"[bold]Cycle {cycle_num}/{cycles}[/bold]"))
 
-        # Phase 1: bootstrap words/sentences
-        console.print(f"[bold]Phase 1[/bold] Generating {words} artifact(s)…")
-        for run in range(1, words + 1):
-            language = s.branches[(run - 1) % len(s.branches)]
-            artifact_id = make_id("A")
-            new_artifacts = generate_artifact(
-                backend=s.backend,
-                model=s.speaker_model,
-                api_key=s.api_key,
-                branch=language,
-                artifact_id=artifact_id,
-                max_words=s.max_speaker_words,
-                word_generator=s.word_generator,
-                proto_lexicon_path=s.proto_lexicon_path,
-                word_beliefs_path=s.word_beliefs_path,
-            )
-            for art in new_artifacts:
-                add_artifact(s.artifacts_path, art)
-        console.print(f"[green]✓[/green] Bootstrapped {words} run(s)")
+        # Phase 1: bootstrap words/sentences (new words + reinforcement sentences)
+        console.print(f"[bold]Phase 1[/bold] Generating {words} new word(s)…")
+        total_bootstrapped = _bootstrap_words(s, console, words)
+        console.print(f"[green]✓[/green] Bootstrapped {total_bootstrapped} artifact(s)")
         console.print()
 
         # Phase 2: research rounds

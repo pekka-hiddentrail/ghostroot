@@ -17,12 +17,25 @@ def generate_artifact(
     branch: str,
     artifact_id: str,
     max_words: int = 5,
+    min_words: int = 2,
     api_key: Optional[str] = None,
     seed_discovery: Optional[str] = None,
     word_generator: str = "llm",
     proto_lexicon_path: Optional[Path] = None,
     word_beliefs_path: Optional[Path] = None,
+    reinforcement_only: bool = False,
+    attested_forms: Optional[set] = None,
 ) -> List[Dict[str, Any]]:
+    """
+    `reinforcement_only`: skip introducing a new inscription entirely and
+    generate ONLY a sentence, built from a pool restricted to `attested_forms`
+    (surface forms already present in the corpus for this branch) when given
+    and non-empty. Without this, every call introduces exactly one new
+    inscription alongside its sentence, so vocabulary is coined faster than
+    the researcher can ever accumulate repeat evidence on any single word --
+    this is the mechanism callers use (see run.py) to interleave a batch of
+    genuinely new words with more reinforcing sentences that reuse them.
+    """
     if word_generator == "phonotactic":
         if proto_lexicon_path is None:
             raise ValueError("proto_lexicon_path is required when word_generator='phonotactic'")
@@ -36,6 +49,34 @@ def generate_artifact(
             store = beliefs_store.load_beliefs(word_beliefs_path)
             confidence_lookup = beliefs_store.confidence_lookup(store, branch)
 
+        if reinforcement_only:
+            reinforcement_pool = pool
+            if attested_forms:
+                filtered = [
+                    r for r in pool
+                    if protolang.mutate_for_branch(r["form"], branch) in attested_forms
+                ]
+                if filtered:
+                    reinforcement_pool = filtered
+            discovery = seed_discovery or random.choice(protolang.ALL_DISCOVERIES)
+            sentence = protolang.generate_sentence(
+                branch=branch, pool=reinforcement_pool, max_words=max_words,
+                min_words=min_words, confidence_lookup=confidence_lookup,
+            )
+            return [{
+                "id": f"{artifact_id}_S",
+                "language": branch,
+                "type": "sentence",
+                "text": sentence,
+                "metadata": {
+                    "discovery": discovery,
+                    "gloss": "",
+                    "meaning": "",
+                    "confidence": "",
+                    "gloss_updated_at": None,
+                },
+            }]
+
         # The inscription's root decides the discovery context (structural
         # roots scatter across all contexts, content roots mostly stay in
         # their hidden domain) so context isn't just decoration -- it's weak,
@@ -44,7 +85,8 @@ def generate_artifact(
         single_word = protolang.mutate_for_branch(root_entry["form"], branch)
         discovery = seed_discovery or protolang.choose_discovery(root_entry)
         sentence = protolang.generate_sentence(
-            branch=branch, pool=pool, max_words=max_words, confidence_lookup=confidence_lookup
+            branch=branch, pool=pool, max_words=max_words, min_words=min_words,
+            confidence_lookup=confidence_lookup,
         )
     else:
         discovery = seed_discovery or random.choice(protolang.ALL_DISCOVERIES)

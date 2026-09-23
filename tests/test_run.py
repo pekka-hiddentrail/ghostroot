@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ghostroot import beliefs
-from ghostroot.run import _apply_context_contradictions, _belief_snapshot, _pass_outcome
+from ghostroot.run import _apply_context_contradictions, _attested_forms, _belief_snapshot, _pass_outcome
 
 
 def _store_with(entries):
@@ -119,3 +119,14 @@ def test_apply_context_contradictions_ignores_lexemes_with_no_interpretation_yet
         store, [{"branch": "soruun", "form": "waka", "note": "?"}],
     )
     assert updates == []
+
+
+def test_attested_forms_only_counts_inscriptions_in_the_given_branch():
+    artifacts = [
+        {"type": "inscription", "language": "ilvath", "text": "Kal"},
+        {"type": "inscription", "language": "soruun", "text": "zeb"},
+        {"type": "sentence", "language": "ilvath", "text": "kal zeb"},  # sentences don't count
+    ]
+    assert _attested_forms(artifacts, "ilvath") == {"kal"}  # case-folded
+    assert _attested_forms(artifacts, "soruun") == {"zeb"}
+    assert _attested_forms(artifacts, "kethra") == set()
