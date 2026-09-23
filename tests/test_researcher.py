@@ -111,7 +111,8 @@ def test_analyze_corpus_shows_confidence_arrow_when_a_hypothesis_is_revised(monk
         researcher, "ask_llm",
         _fake_corpus_report([
             {"root": "dollar", "gloss": "money", "meaning": "unit of exchange",
-             "reasoning": "reinforced across three branches", "confidence": "high"},
+             "reasoning": "reinforced across three branches", "confidence": "high",
+             "branches": ["ilvath", "soruun", "kethra"]},
         ]),
     )
 
@@ -120,6 +121,27 @@ def test_analyze_corpus_shows_confidence_arrow_when_a_hypothesis_is_revised(monk
     )
 
     assert "low → high" in note["summary"]
+
+
+def test_analyze_corpus_caps_confidence_when_only_one_branch_attests_it(monkeypatch):
+    # A hypothesis backed by a single occurrence in a single branch shouldn't
+    # be reportable as "high" confidence just because the model phrased it
+    # assertively -- confidence must be earned by cross-branch attestation.
+    monkeypatch.setattr(
+        researcher, "ask_llm",
+        _fake_corpus_report([
+            {"root": "*wu", "gloss": "boundary", "meaning": "a limit or edge",
+             "reasoning": "single occurrence", "confidence": "high",
+             "branches": ["ilvath"]},
+        ]),
+    )
+
+    store = hyp.empty_store()
+    researcher.analyze_corpus(
+        entry_id="R1", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    )
+
+    assert store["hypotheses"]["wu"]["confidence"] == "low"
 
 
 def test_contradiction_of_an_existing_belief_still_counts_against_it(monkeypatch):

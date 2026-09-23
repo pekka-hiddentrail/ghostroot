@@ -339,7 +339,8 @@ def analyze_corpus(
     prior_entries = list(proto_hypotheses.get("hypotheses", {}).values())
     if prior_entries:
         prior_summary = "\n".join(
-            f"- {e['root']} ({e.get('gloss', '')}): {e.get('meaning', '')} [confidence: {e.get('confidence')}]"
+            f"- {e['root']} ({e.get('gloss', '')}): {e.get('meaning', '')} "
+            f"[confidence: {e.get('confidence')}, branches so far: {', '.join(e.get('branches') or []) or 'none recorded'}]"
             for e in prior_entries
         )
     else:
@@ -383,8 +384,13 @@ or reorder a heading:
 After the sections above, output a fenced ```json code block containing the SAME
 proto-root hypotheses (including any reused from previous passes that still hold) as a
 JSON array, one object per root, with EXACTLY these keys: "root", "gloss", "meaning",
-"reasoning", "confidence" (one of "low", "med", "high"). This is parsed by code to track
-confidence changes across passes, so it must be valid JSON and use the same root
+"reasoning", "confidence" (one of "low", "med", "high"), "branches" (a JSON array of
+EVERY branch name where this root is actually attested as evidence -- not where you
+merely suspect it might apply). Your stated confidence will be capped by code based on
+how many distinct branches you list, so listing only one branch caps this hypothesis at
+"low" regardless of what you write here -- do not inflate "branches" to work around
+that, list only branches you have real textual evidence from. This is parsed by code to
+track confidence changes across passes, so it must be valid JSON and use the same root
 spellings as the table above.
 
 Evidence summary (token stats):
@@ -404,6 +410,8 @@ Recent artifacts (most recent last):
         root = (h.get("root") or "").strip()
         if not root:
             continue
+        branches_raw = h.get("branches") or []
+        branches = [b.strip() for b in branches_raw if isinstance(b, str) and b.strip()]
         hypotheses_store.upsert_hypothesis(
             proto_hypotheses,
             root=root,
@@ -411,6 +419,7 @@ Recent artifacts (most recent last):
             meaning=h.get("meaning", ""),
             reasoning=h.get("reasoning", ""),
             confidence=(h.get("confidence") or "low").strip().lower(),
+            branches=branches,
             pass_id=entry_id,
         )
 

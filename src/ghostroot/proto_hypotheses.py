@@ -14,6 +14,25 @@ from typing import Any, Dict, List, Optional
 # tracked here across passes, so the research note can always show "where we
 # stand", not just "what came up this time".
 _CONFIDENCE_RANK = {"low": 0, "med": 1, "medium": 1, "high": 2}
+_RANK_TO_CONFIDENCE = {0: "low", 1: "med", 2: "high"}
+
+# A hypothesis's confidence is capped by how many distinct branches actually
+# attest it, not by how confident the LLM's wording sounds -- otherwise a
+# root seen exactly once, in one branch, can get called "high" purely
+# because the model phrased its reasoning assertively. This mirrors the
+# evidence-based design already used for word_beliefs.py (confidence comes
+# from evidence_for/evidence_against counts, never asserted directly).
+_MAX_RANK_FOR_BRANCH_COUNT = {0: 0, 1: 0, 2: 1}  # 3+ branches: no cap (rank 2, "high")
+
+
+def _max_rank_for_branch_count(branch_count: int) -> int:
+    return _MAX_RANK_FOR_BRANCH_COUNT.get(branch_count, 2)
+
+
+def _cap_confidence(confidence: str, branch_count: int) -> str:
+    requested_rank = _CONFIDENCE_RANK.get((confidence or "").strip().lower(), 0)
+    capped_rank = min(requested_rank, _max_rank_for_branch_count(branch_count))
+    return _RANK_TO_CONFIDENCE[capped_rank]
 
 
 def empty_store() -> Dict[str, Any]:
@@ -55,20 +74,27 @@ def upsert_hypothesis(
     meaning: str,
     reasoning: str,
     confidence: str,
+    branches: Optional[List[str]] = None,
     pass_id: str,
 ) -> Dict[str, Any]:
     """
-    Insert or update a proto-root hypothesis. `prior_confidence` is set only
-    when this call actually changes the confidence level (so a rendered
-    "low -> med" arrow reflects real movement, not a repeat of the same
-    guess), and clears back to None on a pass that reaffirms the same level.
+    Insert or update a proto-root hypothesis. `confidence` is capped by the
+    number of distinct branches in `branches` (see _cap_confidence) before
+    being stored, so the LLM's self-reported label is a ceiling suggestion,
+    not the final word. `prior_confidence` is set only when the FINAL,
+    capped confidence actually changes level (so a rendered "low -> med"
+    arrow reflects real movement, not a repeat of the same guess), and
+    clears back to None on a pass that reaffirms the same level.
     """
     key = _normalize_root(root)
     existing = store["hypotheses"].get(key)
 
+    branch_count = len(set(branches or []))
+    capped_confidence = _cap_confidence(confidence, branch_count)
+
     first_seen_pass = existing["first_seen_pass"] if existing else pass_id
     prior_confidence: Optional[str] = None
-    if existing and existing.get("confidence") != confidence:
+    if existing and existing.get("confidence") != capped_confidence:
         prior_confidence = existing["confidence"]
 
     entry = {
@@ -76,8 +102,9 @@ def upsert_hypothesis(
         "gloss": gloss,
         "meaning": meaning,
         "reasoning": reasoning,
-        "confidence": confidence,
+        "confidence": capped_confidence,
         "prior_confidence": prior_confidence,
+        "branches": sorted(set(branches or [])),
         "first_seen_pass": first_seen_pass,
         "last_updated_pass": pass_id,
     }
@@ -111,5 +138,7 @@ def render_summary(store: Dict[str, Any]) -> str:
         conf = confidence_display(e)
         gloss = e.get("gloss", "")
         meaning = e.get("meaning", "")
-        lines.append(f"- **{e.get('root', '?')}** ({gloss}) — {conf} — {meaning}")
+        branch_count = len(e.get("branches") or [])
+        attestation = f"{branch_count} branch(es)" if branch_count else "branch count unknown"
+        lines.append(f"- **{e.get('root', '?')}** ({gloss}) — {conf} [{attestation}] — {meaning}")
     return "\n".join(lines)
