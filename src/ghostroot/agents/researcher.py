@@ -167,22 +167,47 @@ Output ONLY a JSON array, one object per lexeme:
         if entry is None:
             continue
 
-        # "supports_existing" only makes sense as a judgment against a PRIOR
-        # interpretation. For a lexeme with no existing belief yet, a first
-        # proposal can't logically contradict anything -- treat it as
-        # support regardless of what the model answered, otherwise a first
-        # observation can land as evidence_for=0/evidence_against=1
-        # (confidence 0.0) purely from the model hedging on a fresh guess.
-        had_prior_interpretation = beliefs_store.top_interpretation(entry) is not None
-        supports = True if not had_prior_interpretation else bool(prop.get("supports_existing", True))
+        proposed_type = prop.get("word_type") or "unknown"
+        proposed_meaning = prop.get("meaning", "")
+        proposed_gloss = prop.get("gloss", "")
 
-        beliefs_store.record_interpretation(
-            entry,
-            word_type=prop.get("word_type") or "unknown",
-            meaning=prop.get("meaning", ""),
-            gloss=prop.get("gloss", ""),
-            supports=supports,
-        )
+        prior_top = beliefs_store.top_interpretation(entry)
+
+        if prior_top is None:
+            # Nothing to contradict yet -- a first-ever proposal can't
+            # logically disagree with anything, so it's support regardless
+            # of what the model answered (otherwise a first observation can
+            # land as evidence_for=0/evidence_against=1, confidence 0.0,
+            # purely from the model hedging on a fresh guess).
+            beliefs_store.record_interpretation(
+                entry, word_type=proposed_type, meaning=proposed_meaning,
+                gloss=proposed_gloss, supports=True,
+            )
+        else:
+            prior_type = prior_top[0]
+            if proposed_type == prior_type:
+                # Same interpretation as the current top -- reinforce or
+                # contradict THAT bucket directly, per the model's own verdict.
+                supports_existing = bool(prop.get("supports_existing", True))
+                beliefs_store.record_interpretation(
+                    entry, word_type=proposed_type, meaning=proposed_meaning,
+                    gloss=proposed_gloss, supports=supports_existing,
+                )
+            else:
+                # A genuinely different interpretation was proposed. This is
+                # real evidence AGAINST the old belief -- record it there,
+                # not on the new candidate's own bucket (which would instead
+                # score the new idea against itself and leave the old belief
+                # frozen, unfalsifiable, forever). The new candidate gets
+                # evidence_for: it's a real alternative reading formed from
+                # actual inspection of the evidence, not a rejected guess.
+                beliefs_store.record_interpretation(
+                    entry, word_type=prior_type, meaning="", supports=False,
+                )
+                beliefs_store.record_interpretation(
+                    entry, word_type=proposed_type, meaning=proposed_meaning,
+                    gloss=proposed_gloss, supports=True,
+                )
 
         top = beliefs_store.top_interpretation(entry)
         if not top:

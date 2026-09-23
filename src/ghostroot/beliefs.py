@@ -88,10 +88,19 @@ def record_interpretation(
     entry["updated_at"] = int(time.time())
 
 
+# A single clean observation (evidence_for=1, evidence_against=0) shouldn't
+# already read as "even odds" (0.5), and three clean observations shouldn't
+# already read as "quite confident" (0.75) -- both undersell how little
+# evidence that actually is. Raising the denominator's prior strength from 1
+# to 3 requires roughly ten clean confirmations before confidence approaches
+# 0.75, so confidence only climbs with genuinely sustained evidence.
+CONFIDENCE_PRIOR_STRENGTH = 3
+
+
 def confidence_of(bucket: Dict[str, Any]) -> float:
     evidence_for = bucket.get("evidence_for", 0)
     evidence_against = bucket.get("evidence_against", 0)
-    return round(evidence_for / (evidence_for + evidence_against + 1), 3)
+    return round(evidence_for / (evidence_for + evidence_against + CONFIDENCE_PRIOR_STRENGTH), 3)
 
 
 def top_interpretation(entry: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any], float]]:

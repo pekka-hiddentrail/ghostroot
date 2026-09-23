@@ -142,6 +142,41 @@ def test_analyze_corpus_caps_confidence_when_only_one_branch_attests_it(monkeypa
     assert store["hypotheses"]["wu"]["confidence"] == "low"
 
 
+def test_disagreement_with_a_different_word_type_penalizes_the_old_belief_not_the_new_one(monkeypatch):
+    # Regression: this was observed live -- ilvath:dollar's "noun" bucket sat
+    # frozen at evidence_for=1/evidence_against=0 forever while "particle"
+    # (proposed instead, with supports_existing=False, across several later
+    # passes) got shot down to evidence_for=0/evidence_against=5. The old
+    # code recorded the disagreement against the NEW candidate's own bucket
+    # instead of the OLD belief actually being contradicted -- backwards.
+    artifacts = [_artifact("A1", "ilvath", "dollar")]
+
+    store = beliefs.empty_store()
+    entry = beliefs.ensure_entry(store, branch="ilvath", form="dollar", artifact_id="A1")
+    beliefs.record_interpretation(entry, word_type="noun", meaning="a prayer fragment", supports=True)
+
+    def fake_ask_llm(prompt, **kwargs):
+        return json.dumps([
+            {
+                "form": "dollar",
+                "branch": "ilvath",
+                "word_type": "particle",
+                "meaning": "a discourse particle of uncertain function",
+                "gloss": "particle",
+                "supports_existing": False,  # disagrees with the current "noun" belief
+            }
+        ])
+
+    monkeypatch.setattr(researcher, "ask_llm", fake_ask_llm)
+    researcher.update_word_beliefs(artifacts=artifacts, beliefs=store)
+
+    noun_bucket = entry["interpretations"]["noun"]
+    particle_bucket = entry["interpretations"]["particle"]
+    assert noun_bucket["evidence_against"] == 1  # the OLD belief takes the hit
+    assert particle_bucket["evidence_for"] == 1  # the NEW candidate gets real support
+    assert particle_bucket["evidence_against"] == 0
+
+
 def test_contradiction_of_an_existing_belief_still_counts_against_it(monkeypatch):
     artifacts = [_artifact("A1", "soruun", "foi"), _artifact("A2", "soruun", "foi")]
 

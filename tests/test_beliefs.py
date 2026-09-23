@@ -35,6 +35,20 @@ def test_confidence_of_grows_with_supporting_evidence_and_shrinks_with_contradic
     assert lower < higher
 
 
+def test_confidence_stays_modest_after_a_single_observation():
+    # A single clean observation is barely any evidence at all -- it
+    # shouldn't already read as "even odds".
+    bucket = {"evidence_for": 1, "evidence_against": 0}
+    assert beliefs.confidence_of(bucket) < 0.4
+
+
+def test_confidence_requires_sustained_evidence_to_read_as_high():
+    # Three clean observations is still a small sample -- shouldn't already
+    # read as "quite confident" (0.75+).
+    bucket = {"evidence_for": 3, "evidence_against": 0}
+    assert beliefs.confidence_of(bucket) <= 0.55
+
+
 def test_record_interpretation_supports_updates_meaning_and_gloss():
     store = beliefs.empty_store()
     entry = beliefs.ensure_entry(store, branch="soruun", form="foi", artifact_id="A1")
