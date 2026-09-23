@@ -12,6 +12,7 @@ from rich.status import Status
 
 from ghostroot import beliefs as beliefs_store
 from ghostroot import proto_hypotheses as hypotheses_store
+from ghostroot import report
 from ghostroot.config import load_settings
 from ghostroot.tools import (
     add_artifact,
@@ -222,40 +223,23 @@ def _run_pass_with_retry(s, *, artifacts, word_beliefs, proto_hypotheses, consol
             time.sleep(wait_s)
 
 
-def run_research_only(count: int) -> None:
+def _run_research_rounds(s, *, artifacts, word_beliefs, proto_hypotheses, console, max_rounds):
     """
-    Runs up to `count` analysis-only passes over the EXISTING corpus -- no
-    new artifacts generated. Stops early if a run of consecutive passes
-    produces no progress (no belief confidence movement, no flagged
-    contradiction): acquiring new material is rare, so the material on hand
-    should be exhausted before asking for more, rather than grinding a fixed
-    number of passes over a corpus that has already given up everything
-    it's going to.
+    Shared frustration-scored analysis loop: runs up to `max_rounds` passes
+    over `artifacts`, stopping early once a run of passes stops making
+    progress. Used by both standalone --research mode and each cycle of
+    --cycles mode.
+
+    Returns (artifacts, rounds_run, stopped_early).
     """
-    console = Console()
-    s = load_settings()
-
-    console.print(Panel.fit(f"[bold]GHOSTROOT[/bold] Research-only mode (up to {count} passes)"))
-    console.print(f"[dim]Backend:[/dim] {s.backend}")
-    console.print(f"[dim]Researcher model:[/dim] {s.researcher_model}")
-    console.print()
-
-    artifacts = load_artifacts(s.artifacts_path)
-    if not artifacts:
-        console.print("[yellow]![/yellow] No artifacts in the corpus yet -- nothing to research.")
-        return
-
-    word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
-    proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
-
     # Every pass costs 1 point up front; a confirmed belief fully refunds it
     # (resets the streak), a contradiction only half-refunds it (still real
     # work, but slowly accumulates even under nothing but revisions), and an
     # empty pass keeps the full cost.
     frustration = 0.0
 
-    for pass_num in range(1, count + 1):
-        console.print(f"[bold cyan]Pass {pass_num}/{count}[/bold cyan]")
+    for pass_num in range(1, max_rounds + 1):
+        console.print(f"[bold cyan]Research round {pass_num}/{max_rounds}[/bold cyan]")
         before = _belief_snapshot(word_beliefs)
 
         with console.status("  [dim]Analyzing...[/dim]", spinner="dots"):
@@ -283,12 +267,125 @@ def run_research_only(count: int) -> None:
             console.print(Panel.fit(
                 f"[bold yellow]Corpus exhausted for now[/bold yellow]\n"
                 f"Frustration reached {frustration:.1f}/{RESEARCH_FRUSTRATION_LIMIT} "
-                f"(stopped after {pass_num}/{count}).\n"
-                f"Generate more material (e.g. `ghostroot --speaker N`) to continue."
+                f"(stopped after {pass_num}/{max_rounds})."
             ))
-            return
+            return artifacts, pass_num, True
 
-    console.print(Panel.fit(f"[bold green]Completed {count} research passes[/bold green]"))
+    return artifacts, max_rounds, False
+
+
+def run_research_only(count: int) -> None:
+    """
+    Runs up to `count` analysis-only passes over the EXISTING corpus -- no
+    new artifacts generated. Stops early if a run of consecutive passes
+    produces no progress (no belief confidence movement, no flagged
+    contradiction): acquiring new material is rare, so the material on hand
+    should be exhausted before asking for more, rather than grinding a fixed
+    number of passes over a corpus that has already given up everything
+    it's going to.
+    """
+    console = Console()
+    s = load_settings()
+
+    console.print(Panel.fit(f"[bold]GHOSTROOT[/bold] Research-only mode (up to {count} passes)"))
+    console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Researcher model:[/dim] {s.researcher_model}")
+    console.print()
+
+    artifacts = load_artifacts(s.artifacts_path)
+    if not artifacts:
+        console.print("[yellow]![/yellow] No artifacts in the corpus yet -- nothing to research.")
+        return
+
+    word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
+    proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
+
+    _artifacts, rounds_run, stopped_early = _run_research_rounds(
+        s, artifacts=artifacts, word_beliefs=word_beliefs,
+        proto_hypotheses=proto_hypotheses, console=console, max_rounds=count,
+    )
+    if not stopped_early:
+        console.print(Panel.fit(f"[bold green]Completed {count} research passes[/bold green]"))
+    else:
+        console.print(f"[dim]Generate more material (e.g. `ghostroot --speaker N`) to continue.[/dim]")
+
+
+def run_full_cycles(*, cycles: int, words: int, rounds: int) -> None:
+    """
+    Repeats a full (bootstrap -> research -> report) sequence `cycles`
+    times, accumulating the corpus across cycles:
+      1. Bootstrap `words` new artifacts (speaker only, round-robin branches).
+      2. Run up to `rounds` research-only passes over the growing corpus
+         (same frustration-scored early stop as standalone --research mode).
+      3. Write a cycle-level report (data/reports/cycle_NNN.md) -- corpus
+         stats, the full proto-root hypothesis table, and top lexeme
+         beliefs -- rendered from a fixed template so cycle N is directly
+         comparable against cycle N-1.
+    """
+    console = Console()
+    s = load_settings()
+
+    console.print(Panel.fit(
+        f"[bold]GHOSTROOT[/bold] Full-cycle mode "
+        f"({cycles} cycle(s): {words} word(s)/sentence(s) + up to {rounds} research round(s) each)"
+    ))
+    console.print(f"[dim]Backend:[/dim] {s.backend}")
+    console.print(f"[dim]Word generator:[/dim] {s.word_generator}")
+    console.print(f"[dim]Branches:[/dim] {', '.join(s.branches)}")
+    console.print()
+
+    for cycle_num in range(1, cycles + 1):
+        console.print(Panel.fit(f"[bold]Cycle {cycle_num}/{cycles}[/bold]"))
+
+        # Phase 1: bootstrap words/sentences
+        console.print(f"[bold]Phase 1[/bold] Generating {words} artifact(s)…")
+        for run in range(1, words + 1):
+            language = s.branches[(run - 1) % len(s.branches)]
+            artifact_id = make_id("A")
+            new_artifacts = generate_artifact(
+                backend=s.backend,
+                model=s.speaker_model,
+                api_key=s.api_key,
+                branch=language,
+                artifact_id=artifact_id,
+                max_words=s.max_speaker_words,
+                word_generator=s.word_generator,
+                proto_lexicon_path=s.proto_lexicon_path,
+                word_beliefs_path=s.word_beliefs_path,
+            )
+            for art in new_artifacts:
+                add_artifact(s.artifacts_path, art)
+        console.print(f"[green]✓[/green] Bootstrapped {words} run(s)")
+        console.print()
+
+        # Phase 2: research rounds
+        console.print(f"[bold]Phase 2[/bold] Research rounds (up to {rounds})")
+        artifacts = load_artifacts(s.artifacts_path)
+        word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
+        proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
+
+        artifacts, rounds_run, stopped_early = _run_research_rounds(
+            s, artifacts=artifacts, word_beliefs=word_beliefs,
+            proto_hypotheses=proto_hypotheses, console=console, max_rounds=rounds,
+        )
+        console.print(f"[green]✓[/green] Ran {rounds_run}/{rounds} research round(s)"
+                      + (" (stopped early)" if stopped_early else ""))
+        console.print()
+
+        # Phase 3: cycle report
+        console.print(f"[bold]Phase 3[/bold] Writing cycle report…")
+        report_content = report.render_cycle_report(
+            cycle_number=cycle_num, artifacts=artifacts,
+            word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses,
+        )
+        report_path = report.write_cycle_report(s.reports_dir, cycle_num, report_content)
+        console.print(f"[green]✓[/green] Saved to {report_path}")
+        console.print()
+
+        console.print(Panel.fit(report_content))
+        console.print()
+
+    console.print(Panel.fit(f"[bold green]Completed {cycles} cycle(s)[/bold green]"))
 
 
 def main() -> None:
@@ -308,6 +405,27 @@ def main() -> None:
         help="Run up to COUNT analysis-only passes over the existing corpus (no new artifacts), "
              "stopping early once a batch stops making progress",
     )
+    parser.add_argument(
+        "--cycles",
+        type=int,
+        metavar="COUNT",
+        help="Run COUNT full cycles, each: bootstrap --words artifacts, then up to --rounds "
+             "research-only passes, then write a cycle report to data/reports/",
+    )
+    parser.add_argument(
+        "--words",
+        type=int,
+        default=10,
+        metavar="COUNT",
+        help="Artifacts to bootstrap per cycle in --cycles mode (default: 10)",
+    )
+    parser.add_argument(
+        "--rounds",
+        type=int,
+        default=3,
+        metavar="COUNT",
+        help="Max research-only passes per cycle in --cycles mode (default: 3)",
+    )
 
     args = parser.parse_args()
 
@@ -325,6 +443,20 @@ def main() -> None:
             print("Error: Research count must be >= 1", file=sys.stderr)
             sys.exit(1)
         run_research_only(args.research)
+        return
+
+    # Full-cycle mode (bootstrap -> research rounds -> report, repeated)
+    if args.cycles:
+        if args.cycles < 1:
+            print("Error: Cycles count must be >= 1", file=sys.stderr)
+            sys.exit(1)
+        if args.words < 1:
+            print("Error: Words count must be >= 1", file=sys.stderr)
+            sys.exit(1)
+        if args.rounds < 1:
+            print("Error: Rounds count must be >= 1", file=sys.stderr)
+            sys.exit(1)
+        run_full_cycles(cycles=args.cycles, words=args.words, rounds=args.rounds)
         return
 
     # Normal full cycle mode
