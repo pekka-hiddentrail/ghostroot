@@ -52,13 +52,15 @@ def save_hypotheses(path: Path, store: Dict[str, Any]) -> None:
 
 
 def _normalize_root(root: str) -> str:
-    # Best-effort key: strips notational noise (leading "*", spaces, case) so
-    # the same underlying root written "*wu" vs "Wu" vs "wu" collapses to one
-    # entry. It will NOT merge two passes that invent different spellings for
-    # what's conceptually the same root (e.g. "dollar" then "*wu") -- that
-    # requires the LLM to recognize its own prior work, which the prompt asks
-    # for but can't guarantee.
-    return root.strip().lower().lstrip("*").replace(" ", "")
+    # Best-effort key: strips notational noise (leading/trailing "*" -- the
+    # LLM sometimes wraps a root in markdown bold as "**day**", not just a
+    # leading sigil -- plus spaces and case) so the same underlying root
+    # written "*wu", "wu*", "Wu", or "wu" all collapse to one entry. It will
+    # NOT merge two passes that invent different spellings for what's
+    # conceptually the same root (e.g. "dollar" then "*wu") -- that requires
+    # the LLM to recognize its own prior work, which the prompt asks for but
+    # can't guarantee.
+    return root.strip().lower().strip("*").replace(" ", "")
 
 
 def upsert_hypothesis(

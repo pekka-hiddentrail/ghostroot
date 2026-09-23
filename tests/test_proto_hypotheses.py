@@ -57,6 +57,24 @@ def test_normalize_root_collapses_notational_variants():
     assert entry["prior_confidence"] == 0.25
 
 
+def test_normalize_root_collapses_trailing_asterisk_too():
+    # Regression: seen live -- the LLM sometimes wraps a root in markdown
+    # bold ("**day**"), not just a leading sigil ("*day"). lstrip("*") only
+    # stripped the leading one, so "day" and "day*" (trailing "*" surviving)
+    # were tracked as two separate hypotheses for the same root.
+    store = hyp.empty_store()
+    hyp.upsert_hypothesis(
+        store, root="day", gloss="count", meaning="a numeral",
+        reasoning="r1", pass_id="R1", branches=["ilvath"],
+    )
+    entry = hyp.upsert_hypothesis(
+        store, root="**day**", gloss="count", meaning="a numeral",
+        reasoning="r2", pass_id="R2", branches=["ilvath", "soruun"],
+    )
+    assert len(store["hypotheses"]) == 1
+    assert entry["prior_confidence"] == 0.25
+
+
 def test_confidence_display_shows_percentage_arrow_only_when_changed():
     store = hyp.empty_store()
     hyp.upsert_hypothesis(
