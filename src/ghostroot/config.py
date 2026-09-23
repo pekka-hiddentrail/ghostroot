@@ -22,7 +22,6 @@ class Settings:
     data_dir: Path
     artifacts_path: Path
     research_log_dir: Path  # one markdown file per entry, not one big JSON array
-    research_questions_path: Path
 
     backend: str  # "ollama", "anthropic", or "groq"
     speaker_model: str
@@ -52,7 +51,6 @@ def load_settings() -> Settings:
     data_dir = project_root / "data"
     artifacts_path = data_dir / "artifacts.json"
     research_log_dir = data_dir / "research_log"
-    research_questions_path = data_dir / "research_questions.json"
 
     backend = os.getenv("GHOSTROOT_BACKEND", "ollama").strip().lower()
     if backend not in _DEFAULT_MODELS:
@@ -92,7 +90,6 @@ def load_settings() -> Settings:
         data_dir=data_dir,
         artifacts_path=artifacts_path,
         research_log_dir=research_log_dir,
-        research_questions_path=research_questions_path,
         backend=backend,
         speaker_model=speaker_model,
         researcher_model=researcher_model,

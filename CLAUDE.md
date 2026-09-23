@@ -15,17 +15,20 @@ Core intent, carried over from this project's original design notes:
 - Treat language as *discovered*, not designed.
 - Researcher agents must express uncertainty and leave open questions rather
   than "solving" the language.
-- `data/artifacts.json`, `data/research_log.json`, and `data/research_questions.json`
-  are append-only and tracked in git on purpose — they *are* the growing
-  scholarly trail the project produces. Don't casually change their schemas.
+- `data/artifacts.json`, `data/research_log/*.md`, `data/word_beliefs.json`, and
+  `data/proto_hypotheses.json` are tracked in git on purpose — they *are* the
+  growing scholarly trail the project produces. Don't casually change their
+  schemas.
 
 ## Commands
 
 ```
 pip install -e .          # install in editable mode (required after any src/ layout change)
 ghostroot                 # run one full cycle: speaker -> researcher -> belief update -> context check
-ghostroot --speaker N      # bootstrap mode: run only the speaker N times, no analysis (use this to build
-                           # up corpus size before analysis has enough data to find real patterns)
+ghostroot --speaker N     # bootstrap mode: run only the speaker N times, no analysis (use this to build
+                          # up corpus size before analysis has enough data to find real patterns)
+ghostroot --research N    # analysis-only mode: run up to N passes over the EXISTING corpus, no new
+                          # artifacts, stopping early once a batch stops making progress ("frustration")
 pytest                    # run tests
 pytest tests/test_x.py -k test_name   # run a single test
 ruff check .              # lint (line-length = 100, configured in pyproject.toml)
@@ -39,15 +42,36 @@ No build step; it's a plain `src/`-layout Python package (`src/ghostroot/`).
 
 1. Speaker generates one artifact (an `inscription` + matching `sentence`) for
    a randomly chosen branch, appended to `data/artifacts.json`.
-2. `researcher.analyze_corpus` writes a narrative research note + proposes/updates
-   structured research questions (`data/research_questions.json`).
+2. `researcher.analyze_corpus` writes a narrative research note (cognate sets,
+   proto-root hypotheses, open questions) to `data/research_log/` as its own
+   timestamped markdown file, and updates the persistent cross-branch
+   proto-root hypothesis store (`data/proto_hypotheses.json`, see below).
 3. `researcher.update_word_beliefs` updates the persistent lexeme belief store
    (`data/word_beliefs.json`) using the **entire** corpus history for each
    lexeme, then syncs the resulting interpretation onto every artifact that
    shares that lexeme — a single word never has two independently-guessed,
    contradictory meanings across different artifact instances.
 4. `context_researcher.analyze_contextual_fit` cross-checks whether glossed
-   meanings still make sense in the sentences they appear in.
+   meanings still make sense in the sentences they appear in, also writing a
+   timestamped markdown file to `data/research_log/`.
+
+Research notes and context analyses are rendered from a fixed section
+template (exact headings every time, `_None this pass._` for empty sections)
+so consecutive reports of the same type stay diffable pass-to-pass instead of
+each having ad-hoc structure. There is no separate "research questions"
+store — open questions are part of the research-note narrative only; nothing
+else in the codebase reads them back, so they carry no mechanical weight.
+
+### Cross-branch proto-root hypotheses (`proto_hypotheses.py`)
+
+Persistent, keyed by normalized root spelling, tracked across passes so a
+hypothesis raised in one pass doesn't silently vanish just because a later
+pass's report doesn't happen to re-mention it. Confidence is capped by how
+many distinct branches the LLM reports as actually attesting the root (1
+branch -> `low` max, 2 -> `med` max, 3+ -> `high` allowed) — the LLM's
+self-reported confidence label is a ceiling suggestion, not the final word,
+so a root spotted once in a single branch can't be reported as high
+confidence just because the wording sounds assertive.
 
 ### Two separate "lexicon" concepts — do not conflate them
 

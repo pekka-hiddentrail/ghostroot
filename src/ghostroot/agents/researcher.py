@@ -200,127 +200,16 @@ Output ONLY a JSON array, one object per lexeme:
     return updates
 
 
-def generate_research_questions(
-    *,
-    artifacts: List[Dict[str, Any]],
-    lang_summaries: Dict[str, Any],
-    existing_questions: List[Dict[str, Any]],
-    backend: str = "ollama",
-    model: str = "ghostroot-concise",
-    api_key: Optional[str] = None,
-) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """
-    Generate structured research questions with proposed answers and confidence.
-    Reviews ALL existing questions and attempts to answer or improve them.
-    
-    Returns:
-        Tuple of (new_questions, updated_questions)
-    """
-    # Prepare existing questions summary - ALWAYS include ALL questions
-    existing_q_text = ""
-    if existing_questions:
-        existing_q_text = "\n\nALL existing research questions to review:\n"
-        for i, q in enumerate(existing_questions, 1):
-            answer = q.get('proposed_answer', 'NO ANSWER YET')
-            conf = q.get('confidence', 'none')
-            existing_q_text += f"{i}. {q.get('question', 'N/A')}\n"
-            existing_q_text += f"   Current answer: {answer}\n"
-            existing_q_text += f"   Current confidence: {conf}\n"
-            existing_q_text += f"   (ID: {q.get('id', '?')})\n"
-    
-    prompt = f"""
-You are a historical linguist. Based on the evidence below:
-
-1) Review ALL existing questions listed below:
-   - For questions with low/medium confidence or no answer: try to provide better answers
-   - For high-confidence questions: only update if new evidence contradicts or significantly improves the answer
-   - Always prioritize questions without answers first
-
-2) Generate 2-3 NEW research questions about the proto-language that haven't been asked yet
-
-CRITICAL: You must review EVERY question listed. Always add ALL new questions to the JSON, even if you cannot provide answers yet.
-
-For ANSWERS/UPDATES to existing questions, provide:
-- question_id: the ID of the question being answered/updated
-- proposed_answer: your answer (improved or new)
-- confidence: low|medium|high (can upgrade if evidence supports it)
-
-For NEW questions, provide:
-- question: the question text
-- proposed_answer: leave empty "" if you cannot answer yet
-- confidence: low (always start with low for new questions)
-
-Output TWO JSON arrays:
-{{
-  "answers": [{{
-    "question_id": "Q123",
-    "proposed_answer": "...",
-    "confidence": "low|medium|high"
-  }}],
-  "new_questions": [{{
-    "question": "...",
-    "proposed_answer": "",
-    "confidence": "low"
-  }}]
-}}
-
-Output ONLY the JSON object. No other text.{existing_q_text}
-
-Evidence summary:
-{lang_summaries}
-
-Recent artifacts:
-{artifacts[-8:]}
-""".strip()
-
-    # Reviews every existing question each cycle, so the expected output
-    # grows with the question count -- a fixed budget eventually truncates
-    # again as research_questions.json grows. Scale with it, same fix as
-    # the update_word_beliefs truncation bug.
-    raw = ask_llm(
-        prompt,
-        backend=backend,
-        model=model,
-        api_key=api_key,
-        max_tokens=max(600, 120 * len(existing_questions) + 300),
-    )
-
-    # Try to parse JSON response
-    try:
-        result = json.loads(raw)
-        if isinstance(result, dict):
-            new_questions = result.get('new_questions', [])
-            answers = result.get('answers', [])
-            
-            # Update existing questions with answers
-            updated_questions = []
-            for ans in answers:
-                qid = ans.get('question_id')
-                for eq in existing_questions:
-                    if eq.get('id') == qid:
-                        eq['proposed_answer'] = ans.get('proposed_answer', '')
-                        eq['confidence'] = ans.get('confidence', 'low')
-                        updated_questions.append(eq)
-                        break
-            
-            return new_questions if isinstance(new_questions, list) else [], updated_questions
-        return [], []
-    except json.JSONDecodeError:
-        # If LLM didn't return valid JSON, return empty lists
-        return [], []
-
-
 def analyze_corpus(
     *,
     entry_id: str,
     artifacts: List[Dict[str, Any]],
-    existing_questions: List[Dict[str, Any]],
     proto_hypotheses: Optional[Dict[str, Any]] = None,
     backend: str = "ollama",
     model: str = "ghostroot-concise",
     api_key: Optional[str] = None,
     max_hypotheses: int = 3,
-) -> tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> Dict[str, Any]:
     per_lang_tokens = _extract_tokens_from_artifacts(artifacts)
 
     lang_summaries: Dict[str, Any] = {}
@@ -428,16 +317,6 @@ Recent artifacts (most recent last):
         f"{hypotheses_store.render_summary(proto_hypotheses)}\n\n---\n\n"
     )
 
-    # Generate structured research questions and try to answer existing ones
-    new_questions, updated_questions = generate_research_questions(
-        artifacts=artifacts,
-        lang_summaries=lang_summaries,
-        existing_questions=existing_questions,
-        backend=backend,
-        model=model,
-        api_key=api_key,
-    )
-
     note = {
         "id": entry_id,
         "type": "research_note",
@@ -448,4 +327,4 @@ Recent artifacts (most recent last):
         },
     }
 
-    return note, new_questions, updated_questions
+    return note

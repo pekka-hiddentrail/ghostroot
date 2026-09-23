@@ -15,12 +15,9 @@ from ghostroot import proto_hypotheses as hypotheses_store
 from ghostroot.config import load_settings
 from ghostroot.tools import (
     add_artifact,
-    append_research_question,
     load_artifacts,
-    load_research_questions,
     make_id,
     update_artifact_glosses,
-    update_research_questions,
     write_research_log_entry,
 )
 from ghostroot.agents.speaker import generate_artifact
@@ -44,15 +41,14 @@ def _belief_snapshot(word_beliefs) -> dict:
     return snapshot
 
 
-def _pass_outcome(before, word_beliefs, new_questions, updated_questions, context_note) -> str:
+def _pass_outcome(before, word_beliefs, context_note) -> str:
     """
     Classifies what an analysis pass actually achieved:
     - "confirmed": a lexeme got its first-ever interpretation, or an existing
-      one's confidence rose without changing its word_type (reinforcement) --
-      or a brand-new research question was raised.
+      one's confidence rose without changing its word_type (reinforcement).
     - "contradicted": an existing interpretation's word_type flipped or its
-      confidence fell (a genuine revision), or an existing question's
-      answer/confidence changed, or the context researcher flagged something.
+      confidence fell (a genuine revision), or the context researcher
+      flagged something.
     - "none": nothing changed at all.
     Confirmation takes priority if a pass produced both in different lexemes.
     """
@@ -74,10 +70,6 @@ def _pass_outcome(before, word_beliefs, new_questions, updated_questions, contex
         else:
             contradicted = True
 
-    if new_questions:
-        confirmed = True
-    if updated_questions:
-        contradicted = True
     summary = (context_note.get("summary") or "").lower()
     if any(kw in summary for kw in _CONTRADICTION_KEYWORDS):
         contradicted = True
@@ -89,7 +81,7 @@ def _pass_outcome(before, word_beliefs, new_questions, updated_questions, contex
     return "none"
 
 
-def run_research_pass(s, *, artifacts, existing_questions, word_beliefs, proto_hypotheses):
+def run_research_pass(s, *, artifacts, word_beliefs, proto_hypotheses):
     """
     Runs one full analysis pass (researcher narrative + word-belief update +
     context check) over the given corpus and persists the results. Does not
@@ -97,18 +89,16 @@ def run_research_pass(s, *, artifacts, existing_questions, word_beliefs, proto_h
     separately, so analysis can be repeated over the same corpus as many
     times as it keeps yielding something.
 
-    Returns (artifacts, existing_questions, note, context_note, new_questions,
-    updated_questions, glosses) -- artifacts/existing_questions are reloaded
-    if they changed.
+    Returns (artifacts, note, context_note, glosses) -- artifacts is reloaded
+    if it changed.
     """
     entry_id = make_id("R")
-    note, new_questions, updated_questions = analyze_corpus(
+    note = analyze_corpus(
         backend=s.backend,
         model=s.researcher_model,
         api_key=s.api_key,
         entry_id=entry_id,
         artifacts=artifacts,
-        existing_questions=existing_questions,
         proto_hypotheses=proto_hypotheses,
         max_hypotheses=s.max_researcher_hypotheses,
     )
@@ -138,18 +128,7 @@ def run_research_pass(s, *, artifacts, existing_questions, word_beliefs, proto_h
     write_research_log_entry(s.research_log_dir, note)
     write_research_log_entry(s.research_log_dir, context_note)
 
-    if new_questions:
-        for q in new_questions:
-            q["research_note_id"] = entry_id
-            q["id"] = make_id("Q")
-            q["created_at"] = int(time.time())
-            append_research_question(s.research_questions_path, q)
-    if updated_questions:
-        update_research_questions(s.research_questions_path, updated_questions)
-    if new_questions or updated_questions:
-        existing_questions = load_research_questions(s.research_questions_path)
-
-    return artifacts, existing_questions, note, context_note, new_questions, updated_questions, glosses
+    return artifacts, note, context_note, glosses
 
 
 def run_speaker_only(count: int) -> None:
@@ -223,9 +202,7 @@ def _retry_wait_seconds(error_message: str, default: float) -> float:
     return default
 
 
-def _run_pass_with_retry(
-    s, *, artifacts, existing_questions, word_beliefs, proto_hypotheses, console, max_retries=5, backoff_s=15
-):
+def _run_pass_with_retry(s, *, artifacts, word_beliefs, proto_hypotheses, console, max_retries=5, backoff_s=15):
     """
     Running several analysis passes back-to-back easily trips a provider's
     rate limit (seen live on Groq's free tier: 8000 tokens/min, exhausted
@@ -235,8 +212,7 @@ def _run_pass_with_retry(
     for attempt in range(1, max_retries + 1):
         try:
             return run_research_pass(
-                s, artifacts=artifacts, existing_questions=existing_questions,
-                word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses,
+                s, artifacts=artifacts, word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses,
             )
         except RuntimeError as e:
             if attempt == max_retries:
@@ -250,11 +226,11 @@ def run_research_only(count: int) -> None:
     """
     Runs up to `count` analysis-only passes over the EXISTING corpus -- no
     new artifacts generated. Stops early if a run of consecutive passes
-    produces no progress (no belief confidence movement, no new/updated
-    research questions, no flagged contradiction): acquiring new material is
-    rare, so the material on hand should be exhausted before asking for more,
-    rather than grinding a fixed number of passes over a corpus that has
-    already given up everything it's going to.
+    produces no progress (no belief confidence movement, no flagged
+    contradiction): acquiring new material is rare, so the material on hand
+    should be exhausted before asking for more, rather than grinding a fixed
+    number of passes over a corpus that has already given up everything
+    it's going to.
     """
     console = Console()
     s = load_settings()
@@ -269,7 +245,6 @@ def run_research_only(count: int) -> None:
         console.print("[yellow]![/yellow] No artifacts in the corpus yet -- nothing to research.")
         return
 
-    existing_questions = load_research_questions(s.research_questions_path)
     word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
     proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
 
@@ -284,24 +259,13 @@ def run_research_only(count: int) -> None:
         before = _belief_snapshot(word_beliefs)
 
         with console.status("  [dim]Analyzing...[/dim]", spinner="dots"):
-            (
-                artifacts,
-                existing_questions,
-                note,
-                context_note,
-                new_questions,
-                updated_questions,
-                glosses,
-            ) = _run_pass_with_retry(
-                s, artifacts=artifacts, existing_questions=existing_questions,
-                word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses, console=console,
+            artifacts, note, context_note, glosses = _run_pass_with_retry(
+                s, artifacts=artifacts, word_beliefs=word_beliefs,
+                proto_hypotheses=proto_hypotheses, console=console,
             )
 
-        outcome = _pass_outcome(before, word_beliefs, new_questions, updated_questions, context_note)
-        detail = (
-            f"{len(glosses)} gloss(es), {len(new_questions)} new question(s), "
-            f"{len(updated_questions)} updated question(s)"
-        )
+        outcome = _pass_outcome(before, word_beliefs, context_note)
+        detail = f"{len(glosses)} gloss(es)"
 
         frustration += 1.0
         if outcome == "confirmed":
@@ -420,12 +384,7 @@ def main() -> None:
     console.print(f"[green]✓[/green] Corpus now has {len(artifacts)} artifacts")
     console.print()
 
-    # Steps 4-9: researcher narrative + word beliefs + context check
-    existing_questions = load_research_questions(s.research_questions_path)
-    if existing_questions:
-        unanswered_count = sum(1 for q in existing_questions if not q.get('proposed_answer'))
-        console.print(f"[dim]Loaded {len(existing_questions)} question(s), {unanswered_count} unanswered (will review ALL)[/dim]")
-
+    # Steps 4-7: researcher narrative + word beliefs + context check
     word_beliefs = beliefs_store.load_beliefs(s.word_beliefs_path)
     proto_hypotheses = hypotheses_store.load_hypotheses(s.proto_hypotheses_path)
 
@@ -435,17 +394,9 @@ def main() -> None:
         "[bold magenta]Researcher agent is analyzing the corpus…[/bold magenta]",
         spinner="dots",
     ):
-        (
-            artifacts,
-            existing_questions,
-            note,
-            context_note,
-            new_questions,
-            updated_questions,
-            glosses,
-        ) = _run_pass_with_retry(
-            s, artifacts=artifacts, existing_questions=existing_questions,
-            word_beliefs=word_beliefs, proto_hypotheses=proto_hypotheses, console=console,
+        artifacts, note, context_note, glosses = _run_pass_with_retry(
+            s, artifacts=artifacts, word_beliefs=word_beliefs,
+            proto_hypotheses=proto_hypotheses, console=console,
         )
     dt = time.perf_counter() - t0
     console.print(f"[green]✓[/green] Researcher done in {dt:.2f}s")
@@ -458,14 +409,6 @@ def main() -> None:
     console.print()
 
     console.print(f"[bold]Step 6-7[/bold] Saved research notes to {s.research_log_dir}")
-    console.print()
-
-    if new_questions:
-        console.print(f"[bold]Step 8[/bold] Saved {len(new_questions)} NEW research question(s)")
-    if updated_questions:
-        console.print(f"[bold]Step 9[/bold] Updated {len(updated_questions)} answered question(s)")
-    if not new_questions and not updated_questions:
-        console.print("[yellow]![/yellow] No research questions generated or updated")
     console.print()
 
     # Final output
@@ -501,28 +444,6 @@ def main() -> None:
         f"Words analyzed: {context_note['metadata']['words_analyzed']}\n\n"
         f"{context_note['summary']}"
     ))
-
-    if new_questions:
-        q_text = "\n\n".join([
-            f"[cyan]NEW Q{i+1}:[/cyan] {q.get('question', 'N/A')}\n"
-            f"[dim]Answer:[/dim] {q.get('proposed_answer', '(unanswered)')}\n"
-            f"[dim]Confidence:[/dim] {q.get('confidence', 'low')}"
-            for i, q in enumerate(new_questions)
-        ])
-        console.print(Panel.fit(
-            f"[bold]New Research Questions[/bold] ({len(new_questions)})\n\n{q_text}"
-        ))
-
-    if updated_questions:
-        u_text = "\n\n".join([
-            f"[green]ANSWERED:[/green] {q.get('question', 'N/A')}\n"
-            f"[dim]Answer:[/dim] {q.get('proposed_answer', 'N/A')}\n"
-            f"[dim]Confidence:[/dim] {q.get('confidence', 'unknown')}"
-            for q in updated_questions
-        ])
-        console.print(Panel.fit(
-            f"[bold]Answered Questions[/bold] ({len(updated_questions)})\n\n{u_text}"
-        ))
 
     if glosses:
         # Get artifact details for formatting

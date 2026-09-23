@@ -51,14 +51,12 @@ def test_first_time_proposal_is_never_treated_as_contradiction(monkeypatch):
 
 def _fake_corpus_report(hypotheses_json):
     def fake_ask_llm(prompt, **kwargs):
-        if "proto-root hypotheses" in prompt.lower():
-            return (
-                "## Cognate Sets\n_None this pass._\n\n"
-                "## Proto-root Hypotheses\n_None this pass._\n\n"
-                "## Open Questions\n_None this pass._\n\n"
-                f"```json\n{json.dumps(hypotheses_json)}\n```"
-            )
-        return json.dumps({"answers": [], "new_questions": []})
+        return (
+            "## Cognate Sets\n_None this pass._\n\n"
+            "## Proto-root Hypotheses\n_None this pass._\n\n"
+            "## Open Questions\n_None this pass._\n\n"
+            f"```json\n{json.dumps(hypotheses_json)}\n```"
+        )
     return fake_ask_llm
 
 
@@ -72,8 +70,8 @@ def test_analyze_corpus_persists_new_hypothesis_into_the_store(monkeypatch):
     )
 
     store = hyp.empty_store()
-    note, _, _ = researcher.analyze_corpus(
-        entry_id="R1", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    note = researcher.analyze_corpus(
+        entry_id="R1", artifacts=[], proto_hypotheses=store,
     )
 
     assert store["hypotheses"]["wu"]["confidence"] == "low"
@@ -93,8 +91,8 @@ def test_analyze_corpus_carries_forward_a_hypothesis_not_mentioned_this_pass(mon
 
     monkeypatch.setattr(researcher, "ask_llm", _fake_corpus_report([]))  # this pass proposes nothing new
 
-    note, _, _ = researcher.analyze_corpus(
-        entry_id="R2", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    note = researcher.analyze_corpus(
+        entry_id="R2", artifacts=[], proto_hypotheses=store,
     )
 
     assert "**dollar**" in note["summary"]  # still shown in the persistent summary
@@ -116,8 +114,8 @@ def test_analyze_corpus_shows_confidence_arrow_when_a_hypothesis_is_revised(monk
         ]),
     )
 
-    note, _, _ = researcher.analyze_corpus(
-        entry_id="R2", artifacts=[], existing_questions=[], proto_hypotheses=store,
+    note = researcher.analyze_corpus(
+        entry_id="R2", artifacts=[], proto_hypotheses=store,
     )
 
     assert "low → high" in note["summary"]
@@ -138,7 +136,7 @@ def test_analyze_corpus_caps_confidence_when_only_one_branch_attests_it(monkeypa
 
     store = hyp.empty_store()
     researcher.analyze_corpus(
-        entry_id="R1", artifacts=[], existing_questions=[], proto_hypotheses=store,
+        entry_id="R1", artifacts=[], proto_hypotheses=store,
     )
 
     assert store["hypotheses"]["wu"]["confidence"] == "low"
