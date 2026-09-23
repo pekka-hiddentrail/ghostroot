@@ -519,9 +519,9 @@ def main() -> None:
     parser.add_argument(
         "--words",
         type=int,
-        default=10,
+        default=5,
         metavar="COUNT",
-        help="Artifacts to bootstrap per cycle in --cycles mode (default: 10)",
+        help="Artifacts to bootstrap per cycle in --cycles mode (default: 5)",
     )
     parser.add_argument(
         "--rounds",
