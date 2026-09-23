@@ -160,14 +160,3 @@ reads the generator's internal state directly, only `canon`'s own contents
 constrains future generation" (§5) precise and structurally enforced,
 instead of enforced only by convention/code review.
 
-## Open for next round
-
-- What counts as a "find" / unit of corpus growth, and what metadata each
-  one carries beyond site/material/genre/date-band — specifically,
-  condition/completeness (are finds ever partial/damaged/illegible in
-  places, the way real epigraphic finds are?).
-- How the generator represents latent, revisable causes of variation
-  concretely (mechanism, not just principle) — informed by the `canon`
-  table boundary above.
-- Data model and a validation approach that fits the emergent-truth model
-  above (coherence/predictive-power, not table-matching).

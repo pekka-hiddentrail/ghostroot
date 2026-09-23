@@ -133,11 +133,11 @@ method real Egyptological/Old Persian decipherment leaned on hardest, and
 it's explicitly not available here per the premise (single unrelated
 language, no known translation). Everything above is chosen because it
 works *without* one. One channel worth flagging as a genuine possibility
-raised by the premise itself, for later consideration (not yet in scope):
-if the script was inherited by the later known traditions, isolated
-loanwords or substrate vocabulary might plausibly have survived into them —
-a thin, indirect echo of Ghost Language vocabulary, distinct from a full
-bilingual anchor. Flagging, not deciding, since it's a scope question.
+raised by the premise itself: if the script was inherited by the later
+known traditions, isolated loanwords or substrate vocabulary might
+plausibly have survived into them — a thin, indirect echo of Ghost
+Language vocabulary, distinct from a full bilingual anchor. Tracked as
+issue #7, not decided here.
 
 ## How this answers issue #1 (grammar scope)
 
