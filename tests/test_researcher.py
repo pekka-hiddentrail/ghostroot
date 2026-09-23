@@ -49,6 +49,40 @@ def test_first_time_proposal_is_never_treated_as_contradiction(monkeypatch):
     assert updates[0]["confidence"] > 0.0
 
 
+def test_representative_examples_surfaces_frequent_words_beyond_a_recency_window():
+    # Regression: this used to be a pure artifacts[-12:] recency window, so
+    # once a corpus grew past a page or two, the LLM never saw examples for
+    # its own top-frequency words (computed from the FULL corpus history) --
+    # only whatever was generated most recently. A frequent word from early
+    # in the corpus should still surface as an example.
+    old_frequent_word = [_artifact(f"A{i}", "ilvath", "bame") for i in range(20)]
+    filler = [_artifact(f"F{i}", "ilvath", f"filler{i}") for i in range(30)]  # pushes it out of any small recency tail
+    artifacts = old_frequent_word + filler
+
+    per_lang_tokens = researcher._extract_tokens_from_artifacts(artifacts)
+    examples = researcher._representative_examples(artifacts, per_lang_tokens)
+
+    assert any(a["text"] == "bame" for a in examples)
+
+
+def test_representative_examples_still_includes_recent_artifacts():
+    frequent = [_artifact(f"A{i}", "ilvath", "bame") for i in range(20)]
+    brand_new = _artifact("NEW1", "ilvath", "zeb")
+    artifacts = frequent + [brand_new]
+
+    per_lang_tokens = researcher._extract_tokens_from_artifacts(artifacts)
+    examples = researcher._representative_examples(artifacts, per_lang_tokens)
+
+    assert any(a["id"] == "NEW1" for a in examples)
+
+
+def test_representative_examples_caps_total_count():
+    artifacts = [_artifact(f"A{i}", "ilvath", f"word{i}") for i in range(100)]
+    per_lang_tokens = researcher._extract_tokens_from_artifacts(artifacts)
+    examples = researcher._representative_examples(artifacts, per_lang_tokens, max_total=10)
+    assert len(examples) <= 10
+
+
 def _fake_corpus_report(hypotheses_json):
     def fake_ask_llm(prompt, **kwargs):
         return (

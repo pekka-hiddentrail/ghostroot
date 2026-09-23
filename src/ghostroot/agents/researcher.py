@@ -32,6 +32,54 @@ def _extract_hypotheses_json(raw: str) -> tuple[str, List[Dict[str, Any]]]:
     return cleaned, parsed if isinstance(parsed, list) else []
 
 
+def _representative_examples(
+    artifacts: List[Dict[str, Any]],
+    per_lang_tokens: Dict[str, List[str]],
+    max_per_branch: int = 4,
+    max_recent: int = 8,
+    max_total: int = 24,
+) -> List[Dict[str, Any]]:
+    """
+    Picks which artifacts to actually show the LLM for cognate/hypothesis
+    discovery. A pure recency window (artifacts[-N:]) starves this the
+    moment the corpus grows past a page or two -- with a large corpus, the
+    LLM only ever sees whatever was generated most recently, never the
+    words most likely to actually be cross-branch cognates (which are
+    exactly the ones lang_summaries's top_tokens frequency stats already
+    identify, computed from the FULL corpus history). This anchors the
+    examples to each branch's own top-frequency tokens instead, so the LLM
+    gets to see real example sentences for its own frequency data, plus a
+    few of the most recent artifacts for freshness (brand-new words this
+    pass introduced).
+    """
+    by_lang_token: Dict[tuple, Dict[str, Any]] = {}
+    for a in artifacts:
+        lang = a.get("language", "unknown")
+        text = a.get("text", "")
+        if not isinstance(text, str):
+            continue
+        for tok in set(t.lower() for t in re.findall(r"[a-zA-Zʔʼ'-]+", text)):
+            by_lang_token.setdefault((lang, tok), a)
+
+    examples: List[Dict[str, Any]] = []
+    seen_ids = set()
+
+    for lang, toks in per_lang_tokens.items():
+        top = [w for w, _ in Counter(toks).most_common(max_per_branch)]
+        for tok in top:
+            art = by_lang_token.get((lang, tok))
+            if art is not None and art.get("id") not in seen_ids:
+                examples.append(art)
+                seen_ids.add(art.get("id"))
+
+    for a in artifacts[-max_recent:]:
+        if a.get("id") not in seen_ids:
+            examples.append(a)
+            seen_ids.add(a.get("id"))
+
+    return examples[:max_total]
+
+
 def _extract_tokens_from_artifacts(artifacts: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     per_lang: Dict[str, List[str]] = defaultdict(list)
     for a in artifacts:
@@ -245,7 +293,7 @@ def analyze_corpus(
             "top_tokens": [w for w, _ in c.most_common(10)],
         }
 
-    last_artifacts = artifacts[-12:]
+    example_artifacts = _representative_examples(artifacts, per_lang_tokens)
 
     if proto_hypotheses is None:
         proto_hypotheses = hypotheses_store.empty_store()
@@ -304,8 +352,8 @@ passes, so it must be valid JSON and use the same root spellings as the table ab
 Evidence summary (token stats):
 {lang_summaries}
 
-Recent artifacts (most recent last):
-{last_artifacts}
+Representative artifacts (top-frequency examples per branch, plus a few of the most recent):
+{example_artifacts}
 """.strip()
 
     # Cognate sets + up to max_hypotheses proto-root writeups + open
