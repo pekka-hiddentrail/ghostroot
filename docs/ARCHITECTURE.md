@@ -44,7 +44,7 @@ CREATE TABLE tokens (
     token_id    INTEGER PRIMARY KEY,
     find_id     INTEGER REFERENCES finds(find_id),
     position    INTEGER,   -- position within the find's text
-    form        TEXT,      -- surface wordform, already transliterated (script is legible)
+    form        TEXT,      -- surface wordform, already transliterated; NULL = lacuna (see below)
     sign_type   TEXT       -- 'alphabetic' | 'numeral', see ARCHITECTURE §9
 );
 
@@ -62,6 +62,20 @@ CREATE TABLE canon (
 `canon` is the one sanctioned crossing point between generation and
 reconstruction (SPEC.md §6): the reconstruction pipeline writes to it, the
 generator reads it before producing its next find, and never the reverse.
+
+**Condition/completeness**: real finds are routinely damaged — breaks,
+erosion, decay — and material predicts damage rate directly (organic media
+like palm-leaf degrade far more readily than stone or fired clay). A `find`
+has a condition (`complete` / `damaged` / `fragmentary`), and a damaged
+find's `tokens.form` can be `NULL` at a known `position` — a lacuna: the
+position (and often the fact that *something* was there) is still known
+from spacing/layout on the physical object, but its content isn't legible.
+Damage probability should scale with material (highest for organic media,
+lowest for stone/fired clay) and possibly with how far back a find's
+date-band is (older strata disturbed more). This is a deliberate difficulty
+lever, not incidental noise: real philology routinely reconstructs a
+damaged formula slot from the surrounding pattern (§5), so lacunae give the
+formula/paradigm mechanisms something genuine to demonstrate.
 
 Every mechanism below is a query or an algorithm over `finds`/`tokens`,
 writing its findings into its own derived table.
@@ -106,6 +120,34 @@ ORDER BY freq DESC;
 `genre_spread` relative to `freq` is the mechanical version of "scatters
 across contexts vs. clusters in one" — no LLM needed to notice it.
 
+### A note on thresholds: significance tests, not magic numbers
+
+§4 and §5 below need a way to decide "is this recurrence real, or could it
+plausibly be chance?" Rather than a hand-picked constant (`MIN_SUPPORT = 3`,
+`MIN_STEM_LEN = 2`), that question has a standard, real answer: a
+**permutation/null-model test**, the same style of check used in real
+corpus statistics (e.g. the Rao et al. 2009 conditional-entropy comparison
+for the Indus script, METHODOLOGY.md §7).
+
+```
+def is_significant(observed_count, corpus, statistic_fn, trials=1000, alpha=0.05):
+    null_counts = []
+    for _ in range(trials):
+        shuffled = shuffle_tokens_within_finds(corpus)   # break real sequence, keep corpus size/shape
+        null_counts.append(statistic_fn(shuffled))
+    p_value = fraction(null_counts >= observed_count)
+    return p_value < alpha
+```
+
+`shuffle_tokens_within_finds` randomizes token order while holding find
+boundaries, vocabulary, and frequency distribution fixed — so the null
+model asks "would a pattern this strong show up in randomly-ordered text
+with the same vocabulary," not "is it below some arbitrary count." `alpha =
+0.05` is the one remaining constant, and it's a standard statistical
+convention, not a domain-specific tuning knob. §4/§5's `MIN_SUPPORT` and
+`MIN_STEM_LEN` become `is_significant(...)` calls using this test instead
+of fixed thresholds.
+
 ## 4. Paradigm-finding via alternation (Kober-style)
 
 **Storage**: derived table `paradigm_clusters(cluster_id, stem, members TEXT[])`.
@@ -118,10 +160,10 @@ pairs comparison).
 distinct_forms = SELECT DISTINCT form FROM tokens
 trie = build_trie(distinct_forms)
 
-for each trie node N with >= 2 children and depth >= MIN_STEM_LEN:
+for each trie node N with >= 2 children:
     endings = collect_suffixes_below(N)          # e.g. {-a, -om, -ei}
-    if endings recur across multiple such nodes (i.e. the SAME ending set
-       shows up below several different stems, not just once):
+    recurrence = count_other_stems_sharing(endings)
+    if is_significant(recurrence, corpus, statistic_fn=shared_ending_recurrence):
         record ParadigmCluster(stem=path_to(N), endings=endings)
 
 write ParadigmClusters to paradigm_clusters table
@@ -140,16 +182,17 @@ stems is a structural pattern.
 for n in [2..MAX_FORMULA_LEN]:
     ngrams = extract all n-length token sequences per find, with find_id
     group by exact sequence
-    keep groups where COUNT(DISTINCT find_id) >= MIN_SUPPORT   -- cross-find, not just repeated within one find
+    cross_find_count = COUNT(DISTINCT find_id) per group   -- cross-find, not just repeated within one find
+    keep groups where is_significant(cross_find_count, corpus, statistic_fn=ngram_cross_find_recurrence)
 
 -- slot-varying formulae (e.g. "X son of Y"):
 for each pair of same-length ngrams with high similarity (difflib.SequenceMatcher
     over the token sequence, not characters):
     positions that differ = candidate slots
     positions that always match = the fixed template
-    if this (template, slot-positions) shape recurs across >= MIN_SUPPORT
-       ngram pairs:
-        record Formula(template, slot_positions, support)
+    recurrence = count_other_pairs_sharing(template, slot_positions)
+    if is_significant(recurrence, corpus, statistic_fn=formula_shape_recurrence):
+        record Formula(template, slot_positions, support=recurrence)
 ```
 
 `difflib` (stdlib) is the right tool here — this alignment happens *within*
@@ -243,11 +286,14 @@ reusing the phonetic alphabet for numbers. Concretely:
   "this is the phonetic alphabet" the same way a real epigraphist can
   visually distinguish a numeral sign from a phonetic sign in an
   unfamiliar script, without knowing what either means yet.
-- Whether the numeral system is additive (tally-like), positional
-  (place-value), or something else is itself a discoverable structural
-  question — decide only when issue #1 (grammar scope) settles whether
-  numeral-system reconstruction is in scope at all, versus purely fixed
-  culturally-flavored formula content.
+- **Additive/cumulative to start** (repeated or grouped glyphs sum to a
+  quantity — tally marks, Roman-numeral-style grouping), not positional
+  place-value. Real numeral systems were additive for most of their
+  history; place-value systems are a comparatively late invention. This
+  also fits the diachronic growth principle (§8) directly: an additive
+  system is genuinely simpler and belongs in the earliest date-bands, with
+  a transition toward a more compact/positional scheme as a later-band
+  stretch goal, not a first-cut requirement.
 - Ledgers/administrative genres are the natural home for numeral tokens —
   this ties into §6's genre-clustering mechanism directly: numeral
   `sign_type` tokens should cluster heavily in administrative/ledger-genre
@@ -257,15 +303,22 @@ reusing the phonetic alphabet for numbers. Concretely:
 ## 10. Generation-side implication: deliberate cultural formula quirks
 
 For §5 (formula detection) to have real signal, the *generator* needs to
-actually produce a small number of genuinely fixed formulae in specific
-genres (not too many — a handful of real fixed templates, e.g. a funerary
-formula, a ledger/tally template using the numeral inventory from §9), the
-way real cultures have a handful of recurring formulaic genres rather than
-every text being unique. This is a generation-design requirement, not a
-reconstruction mechanism — flagged here because it directly determines
-whether §5 has anything real to find, and belongs in the same design
-conversation as issue #3 (latent-variation mechanism) and issue #2 (find/
-genre schema).
+actually produce genuinely fixed formulae. The right way to size "not too
+many" isn't a single corpus-wide percentage — it's **few distinct templates,
+each with high coverage within its own genre**, which matches how real
+formulaic epigraphy actually behaves: funerary epitaphs and administrative/
+ledger records are typically dominated by one or two fixed shapes within
+their genre (a large majority of instances follow the template, varying
+only in the name/number slots), while votive or other free-form genres stay
+much less formulaic. Concretely, for v2's first cut: **one fixed template
+per genre that gets one at all** (e.g. one funerary formula, one ledger/
+tally template using the numeral inventory from §9), applied to a clear
+majority of that genre's finds — rather than many competing templates per
+genre, or a low, corpus-wide sprinkle. This is a generation-design
+requirement, not a reconstruction mechanism — flagged here because it
+directly determines whether §5 has anything real to find, and belongs in
+the same design conversation as issue #3 (latent-variation mechanism) and
+issue #2 (find/genre schema).
 
 ## 11. What actually 100% requires an LLM
 
@@ -297,12 +350,66 @@ Everything else in §2–§8 is deterministic:
   discover anything. A templated fill-in-the-blank summary works without
   one.
 
-## Open follow-ups this raises
+## 12. The generator's latent-variation mechanism, concretely
 
-- Exact `MIN_SUPPORT`/`MIN_STEM_LEN` thresholds for §4/§5 — tunable, needs
-  validation against synthetic data once built (ties to issue #6).
-- Whether numeral-system internal structure (additive vs. positional, §9)
-  is in scope for v2's first cut, or fixed/simple to start.
-- How many fixed cultural formulae (§10) is "not too many" concretely —
-  needs a number, informed by real corpus statistics (e.g. how much of a
-  real Etruscan or comparable corpus is formulaic vs. free text).
+A small, sparse set of **latent grammatical categories** — voice, tense,
+mood, register, clause-type — each with a small closed set of values,
+introduced progressively by date-band (§8: none in the earliest band, one
+or two added per later band). Each category value has a fixed **effect**: a
+specific, deterministic transformation applied to a base clause when that
+value is selected —
+
+```
+category_effects = {
+    (voice, passive):  invert object/verb order, insert particle P,
+    (tense, past):     append suffix from a closed set {-a, -en, ...},
+    (mood, imperative): drop the subject token,
+    ...
+}
+```
+
+Two properties matter:
+
+- **Regular, but not exceptionless.** An effect applies with high
+  probability when its condition holds, not with certainty — real
+  grammatical rules have real exceptions (analogy, sporadic change,
+  register-driven optionality), and a mechanism that's 100% regular would
+  make reconstruction trivially exact instead of genuinely uncertain.
+- **Fully internal.** This table and the category values assigned to any
+  given clause are never exposed through any API the reconstruction
+  pipeline can reach (SPEC.md §6) — only the resulting `finds`/`tokens` rows
+  are visible. The mechanism is real and consistent (that's what makes the
+  corpus learnable at all — pure noise would have nothing to discover), it
+  just isn't a privileged answer key.
+
+Canonization (SPEC.md §5) interacts with this table only indirectly: the
+reconstruction pipeline never reads it, but a *correct* theory about it
+will keep succeeding against new finds (because the real mechanism keeps
+producing consistent effects), while a *spurious* one will eventually be
+contradicted — see §13.
+
+## 13. Validation approach: temporal holdout, not table-matching
+
+The corpus growing over simulated "dig time" already gives a natural held-
+out set — no artificial train/test split needed. A theory canonized using
+finds up to time T is validated against finds discovered *after* T:
+
+```
+def validate_theory(theory, new_finds):
+    predictions = [theory.predicts(f) for f in new_finds if theory.applies_to(f)]
+    hit_rate = mean(p.matched_observed_effect for p in predictions)
+    return hit_rate, is_significant(hit_rate, corpus, statistic_fn=theory_hit_rate)
+```
+
+- Because the underlying mechanism isn't exceptionless (§12), no theory
+  should be expected to reach a 100% hit rate — the bar is a hit rate
+  significantly better than chance (the same permutation-test approach as
+  the thresholds note above), not perfection.
+- A **canonized** theory keeps its status while new finds keep supporting
+  it at a significant rate. A hit rate that drops below significance, or a
+  competing theory that scores significantly better on the same data, is
+  the trigger for revision or replacement — the concrete mechanics behind
+  SPEC.md §5's "revised or overturned when they eventually didn't."
+- This is fair evaluation, not cheating: the pipeline is only ever scored
+  against finds it could observe like a real researcher would (surface
+  text + metadata), never against the generator's internal state.
