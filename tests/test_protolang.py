@@ -165,7 +165,13 @@ def test_choose_root_with_pos_filter_falls_back_when_no_match():
     assert result["form"] == "aa"
 
 
-def test_generate_sentence_follows_branch_word_order_template(tmp_path):
+def test_generate_sentence_follows_branch_word_order_template(monkeypatch, tmp_path):
+    # This checks word ORDER against the POS template, tracing each surface
+    # word back to its canonical root -- isolate it from
+    # apply_micro_variation's own randomness (tested separately), which
+    # would otherwise occasionally break that exact-spelling trace-back.
+    monkeypatch.setattr(protolang, "apply_micro_variation", lambda form, rng=None: form)
+
     pool = protolang.load_or_create_pool(tmp_path / "lex.json", size=24)
     branch = "soruun"
     template = protolang.branch_template(branch)
@@ -183,3 +189,40 @@ def test_generate_sentence_follows_branch_word_order_template(tmp_path):
         root = forms_by_word.get(word)
         assert root is not None, f"generated word {word!r} doesn't trace back to any pool root"
         assert root["pos"] == expected_pos
+
+
+# --- apply_micro_variation: irregular per-occurrence noise on top of mutate_for_branch ---
+
+def test_apply_micro_variation_never_touches_forms_shorter_than_three():
+    rng = random.Random(0)
+    assert protolang.apply_micro_variation("ab", rng) == "ab"
+    assert protolang.apply_micro_variation("a", rng) == "a"
+    assert protolang.apply_micro_variation("", rng) == ""
+
+
+def test_apply_micro_variation_respects_probability_over_many_trials():
+    rng = random.Random(42)
+    form = "kalatu"
+    changed = sum(1 for _ in range(2000) if protolang.apply_micro_variation(form, rng) != form)
+    rate = changed / 2000
+    assert 0.15 < rate < 0.35  # nominal 0.25, generous tolerance for a stochastic check
+
+
+def test_apply_micro_variation_produces_a_single_character_edit():
+    rng = random.Random(1)
+    form = "kalatu"
+    for _ in range(500):
+        mutated = protolang.apply_micro_variation(form, rng)
+        if mutated == form:
+            continue
+        # insertion/deletion/substitution: length differs by at most 1, and
+        # never erodes the form below 2 characters.
+        assert abs(len(mutated) - len(form)) <= 1
+        assert len(mutated) >= 2
+
+
+def test_mutate_for_branch_stays_pure_regardless_of_micro_variation():
+    # mutate_for_branch itself must never be randomized -- choose_root relies
+    # on it being a pure function of (root, branch) to find the right
+    # confidence-lookup key.
+    assert protolang.mutate_for_branch("kalatu", "ilvath") == protolang.mutate_for_branch("kalatu", "ilvath")

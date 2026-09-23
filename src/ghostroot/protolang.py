@@ -195,7 +195,15 @@ def branch_template(branch: str) -> List[str]:
 
 
 def mutate_for_branch(root: str, branch: str) -> str:
-    """Deterministically maps a proto-root to its surface form in `branch`."""
+    """
+    Deterministically maps a proto-root to its surface form in `branch`.
+
+    Kept a pure function of (root, branch) on purpose -- choose_root uses it
+    to compute the confidence-lookup key for the belief-feedback loop, which
+    only works if the same root always maps to the same key. Irregular,
+    per-occurrence variation (see apply_micro_variation) is applied
+    separately, only to the final surface text, never here.
+    """
     form = root
     for pattern, repl in _branch_rules(branch):
         mutated = re.sub(pattern, repl, form)
@@ -203,6 +211,42 @@ def mutate_for_branch(root: str, branch: str) -> str:
         if len(mutated) >= 2:
             form = mutated
     return form
+
+
+# Real cognates aren't always perfectly regular reflexes of each other --
+# scribal variants, analogy, sporadic sound change all add noise beyond the
+# systematic branch-level rules above. This is deliberately NOT part of
+# mutate_for_branch (see its docstring): it's irregular, per-occurrence
+# noise applied to the final surface text, so the SAME root in the SAME
+# branch can surface slightly differently across different occurrences,
+# not just across branches.
+MICRO_MUTATION_PROB = 0.25
+
+
+def apply_micro_variation(form: str, rng: Optional[random.Random] = None) -> str:
+    """
+    With probability MICRO_MUTATION_PROB, applies ONE small edit (insertion,
+    deletion, or substitution of a single character) at a random position --
+    start, middle, or end are all equally likely. Leaves `form` untouched if
+    it's too short to edit without destroying it, or on the (3-in-4) rolls
+    where no variation applies.
+    """
+    rng = rng or random.Random()
+    if len(form) < 3 or rng.random() >= MICRO_MUTATION_PROB:
+        return form
+
+    pos = rng.randint(0, len(form) - 1)
+    edit = rng.choice(("insert", "delete", "substitute"))
+
+    if edit == "delete":
+        mutated = form[:pos] + form[pos + 1:]
+        return mutated if len(mutated) >= 2 else form
+    if edit == "substitute":
+        pool = VOWELS if form[pos] in VOWELS else CONSONANTS
+        return form[:pos] + rng.choice(pool) + form[pos + 1:]
+    # insert
+    pool = VOWELS if form[pos] in CONSONANTS else CONSONANTS
+    return form[:pos] + rng.choice(pool) + form[pos:]
 
 
 def choose_root(
@@ -270,7 +314,8 @@ def generate_word(
 ) -> str:
     rng = rng or random.Random()
     root_entry = choose_root(pool, rng, branch=branch, confidence_lookup=confidence_lookup, pos=pos)
-    return mutate_for_branch(root_entry["form"], branch)
+    surface = mutate_for_branch(root_entry["form"], branch)
+    return apply_micro_variation(surface, rng)
 
 
 def generate_sentence(

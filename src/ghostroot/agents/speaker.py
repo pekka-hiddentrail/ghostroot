@@ -82,7 +82,9 @@ def generate_artifact(
         # their hidden domain) so context isn't just decoration -- it's weak,
         # noisy evidence tied to what actually generated the word.
         root_entry = protolang.choose_root(pool, branch=branch, confidence_lookup=confidence_lookup)
-        single_word = protolang.mutate_for_branch(root_entry["form"], branch)
+        single_word = protolang.apply_micro_variation(
+            protolang.mutate_for_branch(root_entry["form"], branch)
+        )
         discovery = seed_discovery or protolang.choose_discovery(root_entry)
         sentence = protolang.generate_sentence(
             branch=branch, pool=pool, max_words=max_words, min_words=min_words,

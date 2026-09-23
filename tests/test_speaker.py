@@ -30,7 +30,11 @@ def test_reinforcement_only_produces_a_single_sentence_artifact(tmp_path):
     assert artifacts[0]["id"] == "A1_S"
 
 
-def test_reinforcement_only_restricts_vocabulary_to_attested_forms(tmp_path):
+def test_reinforcement_only_restricts_vocabulary_to_attested_forms(monkeypatch, tmp_path):
+    # Isolate pool-filtering from apply_micro_variation's own randomness
+    # (tested separately) so this assertion can't flake.
+    monkeypatch.setattr(protolang, "apply_micro_variation", lambda form, rng=None: form)
+
     pool_path = tmp_path / "proto_lexicon.json"
     _write_pool(pool_path, [
         {"form": "kal", "role": "content", "domain": "trade", "pos": "noun"},
