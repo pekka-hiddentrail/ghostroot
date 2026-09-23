@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ghostroot import beliefs
-from ghostroot.run import _belief_snapshot, _pass_outcome
+from ghostroot.run import _apply_context_contradictions, _belief_snapshot, _pass_outcome
 
 
 def _store_with(entries):
@@ -18,14 +18,10 @@ def _store_with(entries):
     return store
 
 
-def _empty_context_note():
-    return {"summary": "No issues found."}
-
-
 def test_pass_outcome_confirmed_on_brand_new_interpretation():
     store = _store_with({"soruun:foi": ("noun: water", "water", 1, 0)})
     before = {}  # nothing existed yet
-    outcome = _pass_outcome(before, store, context_note=_empty_context_note())
+    outcome = _pass_outcome(before, store)
     assert outcome == "confirmed"
 
 
@@ -35,7 +31,7 @@ def test_pass_outcome_confirmed_on_reinforced_belief():
     beliefs.record_interpretation(
         store["entries"]["soruun:foi"], word_type="noun: water", meaning="water", supports=True
     )
-    outcome = _pass_outcome(before, store, context_note=_empty_context_note())
+    outcome = _pass_outcome(before, store)
     assert outcome == "confirmed"
 
 
@@ -48,7 +44,7 @@ def test_pass_outcome_contradicted_when_word_type_flips():
         beliefs.record_interpretation(
             store["entries"]["soruun:foi"], word_type="particle", meaning="?", supports=True
         )
-    outcome = _pass_outcome(before, store, context_note=_empty_context_note())
+    outcome = _pass_outcome(before, store)
     assert outcome == "contradicted"
 
 
@@ -58,14 +54,14 @@ def test_pass_outcome_contradicted_when_confidence_drops():
     beliefs.record_interpretation(
         store["entries"]["soruun:foi"], word_type="noun: water", meaning="water", supports=False
     )
-    outcome = _pass_outcome(before, store, context_note=_empty_context_note())
+    outcome = _pass_outcome(before, store)
     assert outcome == "contradicted"
 
 
 def test_pass_outcome_none_when_nothing_changed():
     store = _store_with({"soruun:foi": ("noun: water", "water", 1, 0)})
     before = _belief_snapshot(store)
-    outcome = _pass_outcome(before, store, context_note=_empty_context_note())
+    outcome = _pass_outcome(before, store)
     assert outcome == "none"
 
 
@@ -82,15 +78,44 @@ def test_pass_outcome_confirmed_takes_priority_over_contradiction():
     beliefs.record_interpretation(
         store["entries"]["kethra:bar"], word_type="verb", meaning="?", supports=True
     )
-    outcome = _pass_outcome(before, store, context_note=_empty_context_note())
+    outcome = _pass_outcome(before, store)
     assert outcome == "confirmed"
 
 
-def test_pass_outcome_contradiction_keyword_in_context_note_counts():
+def test_pass_outcome_counts_a_context_contradiction():
     store = _store_with({})
     before = _belief_snapshot(store)
-    outcome = _pass_outcome(
-        before, store,
-        context_note={"summary": "This gloss appears to contradict its context."},
-    )
+    outcome = _pass_outcome(before, store, contradictions_found=1)
     assert outcome == "contradicted"
+
+
+# --- _apply_context_contradictions: the context-check -> belief-store feedback loop ---
+
+def test_apply_context_contradictions_lowers_confidence_of_the_current_top():
+    store = _store_with({"soruun:waka": ("verb: to cover", "to cover something", 3, 0)})
+    before_conf = beliefs.top_interpretation(store["entries"]["soruun:waka"])[2]
+
+    updates = _apply_context_contradictions(
+        store, [{"branch": "soruun", "form": "waka", "note": "seen in unrelated contexts"}],
+    )
+
+    after_conf = beliefs.top_interpretation(store["entries"]["soruun:waka"])[2]
+    assert after_conf < before_conf
+    assert updates and updates[0]["confidence"] == after_conf
+
+
+def test_apply_context_contradictions_ignores_unknown_lexemes():
+    store = beliefs.empty_store()
+    updates = _apply_context_contradictions(
+        store, [{"branch": "soruun", "form": "nonexistent", "note": "?"}],
+    )
+    assert updates == []
+
+
+def test_apply_context_contradictions_ignores_lexemes_with_no_interpretation_yet():
+    store = beliefs.empty_store()
+    beliefs.ensure_entry(store, branch="soruun", form="waka", artifact_id="A1")  # no interpretation recorded
+    updates = _apply_context_contradictions(
+        store, [{"branch": "soruun", "form": "waka", "note": "?"}],
+    )
+    assert updates == []

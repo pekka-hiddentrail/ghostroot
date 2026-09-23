@@ -270,7 +270,6 @@ Tasks:
    hypothesis you already proposed in a previous pass (listed below), REUSE its exact
    root spelling rather than inventing a new label for the same idea. Only introduce a
    new root when it's genuinely a different one.
-3) Note 1–3 open questions to investigate next.
 
 Important:
 - Do NOT claim certainty. Confidence for each hypothesis is computed by code from how
@@ -293,9 +292,6 @@ or reorder a heading:
 | Root | Gloss | Meaning | Reasoning |
 |------|-------|---------|-----------|
 | *root* | gloss | english meaning | brief justification |
-
-## Open Questions
-1. <question>
 
 After the sections above, output a fenced ```json code block containing the SAME
 proto-root hypotheses (including any reused from previous passes that still hold) as a

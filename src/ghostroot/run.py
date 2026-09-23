@@ -29,10 +29,6 @@ RESEARCH_FRUSTRATION_LIMIT = 3.0  # accumulated frustration before giving up on 
 CONFIRMATION_RELIEF = 1.0  # a reinforced (or brand-new) belief fully offsets a pass's cost
 CONTRADICTION_RELIEF = 0.5  # a revised belief is real work too, but only half as satisfying
 
-# Weak signal for "the context researcher found something worth revising" --
-# it doesn't (yet) write structured contradictions anywhere, just prose.
-_CONTRADICTION_KEYWORDS = ("contradict", "inconsist", "reinterpret")
-
 
 def _belief_snapshot(word_beliefs) -> dict:
     snapshot = {}
@@ -42,20 +38,21 @@ def _belief_snapshot(word_beliefs) -> dict:
     return snapshot
 
 
-def _pass_outcome(before, word_beliefs, context_note) -> str:
+def _pass_outcome(before, word_beliefs, contradictions_found: int = 0) -> str:
     """
     Classifies what an analysis pass actually achieved:
     - "confirmed": a lexeme got its first-ever interpretation, or an existing
       one's confidence rose without changing its word_type (reinforcement).
     - "contradicted": an existing interpretation's word_type flipped or its
-      confidence fell (a genuine revision), or the context researcher
-      flagged something.
+      confidence fell (a genuine revision), or the context researcher found
+      a genuine contradiction (contradictions_found > 0 -- see
+      _apply_context_contradictions).
     - "none": nothing changed at all.
     Confirmation takes priority if a pass produced both in different lexemes.
     """
     after = _belief_snapshot(word_beliefs)
     confirmed = False
-    contradicted = False
+    contradicted = contradictions_found > 0
 
     for key, after_val in after.items():
         before_val = before.get(key)
@@ -71,10 +68,6 @@ def _pass_outcome(before, word_beliefs, context_note) -> str:
         else:
             contradicted = True
 
-    summary = (context_note.get("summary") or "").lower()
-    if any(kw in summary for kw in _CONTRADICTION_KEYWORDS):
-        contradicted = True
-
     if confirmed:
         return "confirmed"
     if contradicted:
@@ -82,13 +75,56 @@ def _pass_outcome(before, word_beliefs, context_note) -> str:
     return "none"
 
 
+def _apply_context_contradictions(word_beliefs, contradictions):
+    """
+    Registers each genuine context contradiction (see
+    context_researcher.analyze_contextual_fit) as real evidence_against on
+    the CURRENT top interpretation of the belief it disagrees with. This is
+    what actually closes the loop between the context check and the belief
+    store -- a contradiction used to just sit in the log as prose with no
+    mechanical effect. Lowering that belief's confidence also naturally makes
+    update_word_beliefs prioritize it again next pass (it already reviews the
+    lowest-confidence lexemes first), so no separate "flagged for re-review"
+    bookkeeping is needed on top of this.
+
+    Returns gloss updates (same shape as update_word_beliefs's return) for
+    any entry whose top interpretation changed as a result.
+    """
+    updates = []
+    for c in contradictions:
+        key = beliefs_store.key_for(c["branch"], c["form"])
+        entry = word_beliefs["entries"].get(key)
+        if entry is None:
+            continue
+        top = beliefs_store.top_interpretation(entry)
+        if top is None:
+            continue
+        top_word_type = top[0]
+        beliefs_store.record_interpretation(entry, word_type=top_word_type, meaning="", supports=False)
+
+        new_top = beliefs_store.top_interpretation(entry)
+        if not new_top:
+            continue
+        new_word_type, new_bucket, new_conf = new_top
+        for artifact_id in entry["artifact_ids"]:
+            updates.append({
+                "artifact_id": artifact_id,
+                "meaning": new_bucket["meaning"],
+                "gloss": new_bucket["gloss"],
+                "confidence": new_conf,
+                "word_type": new_word_type,
+            })
+    return updates
+
+
 def run_research_pass(s, *, artifacts, word_beliefs, proto_hypotheses):
     """
     Runs one full analysis pass (researcher narrative + word-belief update +
-    context check) over the given corpus and persists the results. Does not
-    generate any new artifacts -- callers control acquisition of new material
-    separately, so analysis can be repeated over the same corpus as many
-    times as it keeps yielding something.
+    context check) over the given corpus and persists the results as ONE
+    combined research-log entry. Does not generate any new artifacts --
+    callers control acquisition of new material separately, so analysis can
+    be repeated over the same corpus as many times as it keeps yielding
+    something.
 
     Returns (artifacts, note, context_note, glosses) -- artifacts is reloaded
     if it changed.
@@ -112,22 +148,36 @@ def run_research_pass(s, *, artifacts, word_beliefs, proto_hypotheses):
         model=s.researcher_model,
         api_key=s.api_key,
     )
-    beliefs_store.save_beliefs(s.word_beliefs_path, word_beliefs)
     if glosses:
         update_artifact_glosses(s.artifacts_path, glosses)
         artifacts = load_artifacts(s.artifacts_path)
 
-    context_entry_id = make_id("C")
-    context_note = analyze_contextual_fit(
+    context_note, contradictions = analyze_contextual_fit(
         backend=s.backend,
         model=s.researcher_model,
         api_key=s.api_key,
-        entry_id=context_entry_id,
+        entry_id=entry_id,
         artifacts=artifacts,
     )
 
-    write_research_log_entry(s.research_log_dir, note)
-    write_research_log_entry(s.research_log_dir, context_note)
+    contradiction_updates = _apply_context_contradictions(word_beliefs, contradictions)
+    if contradiction_updates:
+        update_artifact_glosses(s.artifacts_path, contradiction_updates)
+        artifacts = load_artifacts(s.artifacts_path)
+        glosses = glosses + contradiction_updates
+
+    beliefs_store.save_beliefs(s.word_beliefs_path, word_beliefs)
+
+    combined_entry = {
+        "id": entry_id,
+        "type": "analysis",
+        "summary": (
+            "# Research Findings\n\n" + note["summary"] +
+            "\n\n---\n\n# Context Check\n\n" + context_note["summary"]
+        ),
+        "metadata": {**note["metadata"], **context_note["metadata"]},
+    }
+    write_research_log_entry(s.research_log_dir, combined_entry)
 
     return artifacts, note, context_note, glosses
 
@@ -248,7 +298,8 @@ def _run_research_rounds(s, *, artifacts, word_beliefs, proto_hypotheses, consol
                 proto_hypotheses=proto_hypotheses, console=console,
             )
 
-        outcome = _pass_outcome(before, word_beliefs, context_note)
+        contradictions_found = context_note.get("metadata", {}).get("contradictions_found", 0)
+        outcome = _pass_outcome(before, word_beliefs, contradictions_found)
         detail = f"{len(glosses)} gloss(es)"
 
         frustration += 1.0
@@ -540,7 +591,7 @@ def main() -> None:
         console.print("[dim]No glosses generated this cycle[/dim]")
     console.print()
 
-    console.print(f"[bold]Step 6-7[/bold] Saved research notes to {s.research_log_dir}")
+    console.print(f"[bold]Step 6[/bold] Saved combined research note to {s.research_log_dir}")
     console.print()
 
     # Final output
