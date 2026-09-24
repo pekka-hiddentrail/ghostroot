@@ -1,162 +1,117 @@
 # GHOSTROOT v2 — Design Spec
 
-Status: DRAFT — Premise and methodology grounding only. Not yet reviewed/approved.
-
 ## 1. Premise
 
-Archaeologists find an ancient burial site bearing an inscription in a
-script closely resembling a known historical writing system (the specific
-real-world script is arbitrary and illustrative only — any script that was
-later adopted by other, well-documented languages fits the premise; think
-in the shape of "Brahmi-derived script now read via several known
-descendant traditions," not a specific literal pairing). It's initially
-catalogued as that known tradition. Carbon dating on the associated
-material places it well before any attested speaker of the languages that
-tradition is known for. More sites turn up over time — different
-find-spots, different materials (clay tablets, carved stone, incised
-palm-leaf) — all using recognizably the same writing system.
+Archaeologists find an inscription in a script resembling a known
+historical writing system (the real-world example is arbitrary and
+illustrative — any script later adopted by other, well-documented
+languages fits: think "Brahmi-derived script now read via several known
+descendant traditions," not a specific pairing). It's initially catalogued
+as that known tradition. Carbon dating places it well before any attested
+speaker of the languages that tradition is known for. More sites turn up
+over time — different materials (clay, stone, palm-leaf) — all using the
+same writing system.
 
-The resolution is this: the writing system is older than the known
-traditions that later used it. It was inherited and adapted by them — the
-way real scripts get borrowed and repurposed across unrelated languages
-throughout history. Because those later languages are well documented, the
-script's sign-to-sound values are essentially known: the inscriptions can
-be *read* — transliterated into sound — with confidence. What they *say* is
-a different question. The language actually encoded by the original
-inscriptions predates and is unrelated to anything attested — a single
-extinct language, known only through a slowly growing pile of physical
-finds, that has to be understood on its own terms.
+The writing system is older than the traditions that later used it: it
+was inherited and adapted by them, the way scripts get borrowed and
+repurposed across unrelated languages throughout history. Because those
+later languages are well documented, sign-to-sound values are essentially
+known — the inscriptions can be *read* with confidence. What they *say* is
+a different question. The language actually encoded predates and is
+unrelated to anything attested — a single extinct language, known only
+through a slowly growing pile of finds, understood on its own terms.
 
-This is the Ghost Language. GHOSTROOT simulates reconstructing it: not by
-comparing it against sibling descendant languages (there are none — it left
-no known descendants, only a script that outlived it), but the way real
-epigraphists work when a script is legible but the language behind it isn't
-yet understood — cases like Etruscan (read via a Greek-derived alphabet,
-genuinely understood only slowly, and still only partially) or Meroitic
-(read via Egyptian-derived signs, still poorly understood as a language).
+This is the Ghost Language. GHOSTROOT simulates reconstructing it — not by
+comparing sibling descendant languages (there are none, only a script that
+outlived it), but the way real epigraphists work when a script is legible
+but the language isn't understood yet: Etruscan (read via a Greek-derived
+alphabet, understood only slowly and still only partially), Meroitic (read
+via Egyptian-derived signs, still poorly understood as a language).
 
-## 2. Why this, personally
+## 2. Why this
 
-This exists because building a *constructed* language for a fictional world
-always felt artificial — deciding up front what the sound system and
-grammar "should" be. The more interesting problem is the reverse: given
-that a plausible ancient natural language could have existed, discover it
-as if excavating it, rather than design it. The corpus should feel found,
-not authored — irregular, incomplete, contradictable — and the reconstructed
-grammar and vocabulary should be something that *emerges* from evidence
-across a growing dig, not something decided in advance.
+Building a *constructed* language for a fictional world always felt
+artificial — deciding up front what the sound system and grammar "should"
+be. The more interesting problem is the reverse: discover a plausible
+ancient language as if excavating it, rather than design it. The corpus
+should feel found, not authored — irregular, incomplete, contradictable —
+and the reconstructed grammar and vocabulary should emerge from evidence
+across a growing dig, not be decided in advance.
 
-## 3. Structural shape (confirmed)
+## 3. Structural shape
 
-- **One language**, not several diverging branches. There is no comparative
-  method across siblings here — the corpus is many attestations of a single
-  extinct language, accumulated over (simulated) archaeological time as new
-  sites and artifacts are "found."
+- **One language**, not diverging branches. No comparative method across
+  siblings — many attestations of a single extinct language, accumulated
+  over simulated archaeological time as new sites are found.
 - **The script is legible.** Sign-to-sound transliteration is a given,
-  inherited fact (like reading Etruscan letters), not something to
-  reconstruct. Every inscription in the corpus is already phonetically
-  transcribed text — real, readable strings — from the moment it's
-  generated. Nothing in this system is about cracking an unread script.
-- **The mystery is entirely: grammar, vocabulary, and meaning.** Word
-  segmentation, morphology, syntax, and what any of it actually *means* —
-  reconstructed from the corpus's own internal patterns and from the
-  physical/contextual metadata each find carries (site, material, genre —
-  e.g. funerary, administrative, votive), not from any known relative.
+  inherited fact, not something to reconstruct. Every inscription is
+  already phonetically transcribed, readable text from the moment it's
+  generated. This system is never about cracking an unread script.
+- **The mystery is grammar, vocabulary, and meaning** — reconstructed from
+  the corpus's own internal patterns and each find's physical/contextual
+  metadata (site, material, genre), not from any known relative.
 
-## 4. Methodology grounding — what real epigraphists actually do
+## 4. Methodology grounding
 
-Since there's no sibling language to compare against, the real analogue is
-epigraphic/philological analysis of an under-documented, undeciphered-*in-
-meaning* (if not undeciphered-in-script) language corpus. The core toolkit,
-concretely:
+No sibling language to compare against, so the real analogue is epigraphic/
+philological analysis of a corpus that's readable but not understood. Core
+toolkit (see `docs/METHODOLOGY.md` for the real-world precedents):
 
-- **Frequency and distribution statistics.** Which signs/words are common
-  vs. rare; which recur across many find-contexts (genre/site/material) vs.
-  cluster tightly in one. This is the actual basis for the real
-  distributional hypothesis (function words spread thin and flat; content
-  words cluster by domain) — a legitimate, well-established technique (see
-  docs/METHODOLOGY.md).
-- **Formulaic phrase detection.** Real inscriptions of this kind are
-  dominated by recurring formulae (funerary formulas, dedicatory
-  boilerplate, administrative stock phrases) — finding a repeated multi-word
-  sequence across independent finds is strong, mechanical evidence, closely
-  analogous to how formulaic analysis cracked parts of many real corpora
-  before full decipherment.
-- **Positional/syntactic pattern-finding within the corpus itself.** Word
-  order regularities, which word classes co-occur and in what sequence —
-  discoverable from the corpus's own internal structure, without needing a
-  second language to compare against.
-- **Internal reconstruction.** Spotting morphological alternations by
-  comparing forms that plausibly share a stem *within* the one language
-  (e.g. a recurring affix pattern across many otherwise-different words),
-  rather than cross-branch correspondence.
-- **Context-driven semantic hypothesis formation.** A word's meaning is
-  approached through where and with what it's found — material, site type,
-  co-occurring signs/iconography, genre — the same contextual reasoning
-  real archaeologists and epigraphists lean on before (or absent) a
-  bilingual anchor.
-  
+- Frequency/distribution statistics — the basis for the distributional
+  hypothesis (function words spread thin and flat; content words cluster
+  by domain).
+- Formulaic phrase detection — repeated multi-word sequences across
+  independent finds.
+- Positional/syntactic pattern-finding within the corpus itself.
+- Internal reconstruction — morphological alternations within the one
+  language, not cross-branch correspondence.
+- Context-driven semantic hypothesis formation — meaning approached
+  through material, site, genre, co-occurring signs.
+
 ## 5. Ground truth is emergent, not fixed
 
-There is no static, complete, hidden answer key that the generator holds
-and the reconstruction pipeline gets scored against. That framing implies a
-single predetermined correct grammar waiting to be matched — which isn't
-how real reconstruction works, and isn't how this should work either.
+There is no static, complete, hidden answer key the generator holds and
+the pipeline gets scored against — that implies a single predetermined
+correct grammar waiting to be matched, which isn't how real reconstruction
+works.
 
 Instead:
 
-- The generator produces *variation* that can stem from a real latent
-  cause — a word-order shift might reflect passive voice, a tense/mood
-  distinction, register, clause type, and so on — but that cause is not
-  pre-labeled or exposed anywhere as a definitive table the pipeline could
-  cheat by reading. The generator's underlying mechanism is the raw
-  phenomena, not the answer.
-- "Ground truth," in this system, is whatever theory the research process
-  has converged on with enough supporting evidence — provisional, and only
-  ever "canonized" (treated as settled) once well-supported, exactly like
-  Grimm's Law or laryngeal theory in real historical linguistics: accepted
-  because they kept explaining new data well, revised or overturned when
-  they eventually didn't, never received as pre-existing fact.
-- A canonized theory should act as a real constraint going forward: future
-  generation and future interpretation should stay consistent with it
-  rather than silently contradict it — this is a two-way relationship
-  (evidence shapes theory; accepted theory shapes what's coherent to
-  generate/interpret next), not one-way "hidden truth leaks down to a
-  guesser."
-- Multiple coherent theories can be compatible with the same data, and
-  there may be no single "correct" grammar at all — only better- or
-  worse-supported explanations, same as real scholarly disagreement over,
-  say, Etruscan grammar.
+- The generator produces variation that can stem from a real latent cause
+  (a word-order shift might reflect passive voice, tense/mood, register)
+  — but that cause is never pre-labeled or exposed as a table the pipeline
+  could read. The generator's mechanism is the raw phenomena, not the
+  answer.
+- "Ground truth" is whatever theory the research process has converged on
+  with enough evidence — provisional, "canonized" only once well-supported,
+  like Grimm's Law or laryngeal theory: accepted because they kept
+  explaining new data, revised or overturned when they eventually didn't.
+- A canonized theory constrains what's generated/interpreted next —
+  evidence shapes theory, theory shapes future generation. Two-way, not
+  "hidden truth leaks down to a guesser."
+- Multiple coherent theories can fit the same data. There may be no single
+  "correct" grammar, only better- or worse-supported explanations — same
+  as real scholarly disagreement over, say, Etruscan grammar.
 
-This directly changes what "validation" can mean (see open items below):
-not "% match to a hidden table," but something like internal coherence and
-predictive/explanatory power over new data as it arrives.
+Validation follows from this: internal coherence and predictive power over
+new data, not "% match to a hidden table."
 
 ## 6. Epistemic boundary
 
-The reconstruction pipeline (every mechanism in docs/ARCHITECTURE.md) may
-only ever read two things:
+The reconstruction pipeline may only ever read:
 
-- The **`finds`/`tokens` tables** — surface transliterated text plus
-  physical/contextual metadata (site, material, genre, date-band,
-  discovered-at). This is "what was dug up," nothing more.
-- Its **own derived tables** — paradigm clusters, formulae, candidate
-  semantic fields, and canonized theories it or a prior pass produced.
+- **`finds`/`tokens`** — transliterated text plus site/material/genre/
+  date-band metadata. What was dug up, nothing more.
+- **Its own derived tables** — paradigm clusters, formulae, candidate
+  semantic fields, canonized theories from this or a prior pass.
 
-It may never read the generator's internal latent state or decision
-parameters directly — e.g. *why* a particular word order was inverted
-(passive voice, a tense distinction, register) is exactly the kind of thing
-that must stay invisible; only the surface *effect* (the inverted order,
-as a `finds`/`tokens` row) is visible.
+It never reads the generator's internal latent state directly — *why* a
+word order inverted (passive voice, tense, register) stays invisible; only
+the surface effect (the row in `finds`/`tokens`) is visible.
 
-Canonization (SPEC.md §5) is the one sanctioned crossing, and it's
-one-directional per generation step, not a leak: when the reconstruction
-pipeline canonizes a theory, it writes it to a **`canon`** table. The
-generator may read `canon` before producing its *next* find, so it doesn't
-generate something that contradicts already-settled theory — but the
-generator never writes to `canon`, and the reconstruction pipeline never
-reads the generator's internal state directly, only `canon`'s own contents
-(which it wrote itself). This keeps "evidence shapes theory; settled theory
-constrains future generation" (§5) precise and structurally enforced,
-instead of enforced only by convention/code review.
-
+Canonization is the one sanctioned crossing, one-directional: the pipeline
+writes a canonized theory to **`canon`**; the generator reads `canon`
+before its next find, so it won't contradict settled theory. The generator
+never writes to `canon`; the pipeline never reads generator state, only
+`canon`'s own contents. This makes §5's "evidence shapes theory, theory
+constrains future generation" structurally enforced, not just convention.
