@@ -26,6 +26,34 @@ system: it grounds *which mutations are realistic* (lenition,
 palatalization, final-vowel loss, consonant shifts) instead of picking
 diachronic moves arbitrarily.
 
+## Seeding
+
+Three separate, fully independent seeds — never bundled into one combined
+run ID:
+
+- **World seed** — rolls phonology, syllable shapes, baseline word order,
+  formula-archetype selection.
+- **Corpus seed** — rolls which finds get generated, in what order.
+- **Mutation seed** — rolls which diachronic changes apply, and when.
+
+All manual, always. No implicit randomness, no auto-generated seed with a
+"here's what got picked" fallback — every run is fully deterministic
+because every seed is explicitly chosen, every time. Which specific value
+to use depends on what you're doing (a baseline test vs. probing a
+specific scenario) — that choice is the user's, not the system's.
+
+Independent by design: hold world + corpus fixed and vary the mutation
+seed to compare evolution paths from an identical starting point and
+identical dig; or vary the corpus seed alone to compare different digs
+into the same unchanging language.
+
+Persisted with the corpus: each SQLite database carries its own
+`world_manifest` (the three seeds that produced it, plus the rolled
+world-seed outputs — phoneme inventory, syllable shapes, baseline order,
+archetype subset). A world's seeds don't change mid-run — testing a
+different scenario means starting a fresh database with different seed(s),
+not mutating seeds on an existing one.
+
 ## Phoneme system
 
 Grounded in PHOIBLE (2,186 languages, real cross-linguistic inventories —
