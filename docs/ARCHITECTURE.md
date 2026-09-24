@@ -344,3 +344,57 @@ def validate_theory(theory, new_finds):
 - Fair evaluation, not cheating: the pipeline is only ever scored against
   finds it could observe like a real researcher would, never against the
   generator's internal state.
+
+## 14. Specialists: inputs and outputs
+
+Named specialists (mirroring real interdisciplinary decipherment work),
+each a deterministic mechanism from above, each reading/writing its own
+table plus (for round-robin cross-referencing, §15) whichever other
+specialists' tables it depends on:
+
+| Specialist | Reads (own + others') | Writes |
+|---|---|---|
+| **Chronologist** | `finds` | `date_bands(band_id, find_count, first_discovered_at, last_discovered_at, updated_at_round)` |
+| **Statistician** (§2, §3) | `tokens`/`finds`, `date_bands` | `word_stats(form, freq, genre_spread, neighbor_breadth, updated_at_round)` |
+| **Grammarian** (§4, §4a) | `tokens`, `word_stats` | `spelling_variants(canonical_form, variant_form, updated_at_round)`, `paradigm_clusters(cluster_id, stem, members, updated_at_round)` |
+| **Epigraphist** (§5, §7) | `tokens`, `paradigm_clusters` | `formulae(formula_id, template, slot_positions, support, updated_at_round)`, `proper_noun_candidates(form, updated_at_round)` |
+| **Contextualist** (§6) | `tokens`/`finds`, `proper_noun_candidates` (excluded from clustering) | `candidate_domains(form, genre, count, updated_at_round)` |
+| **Skeptic** (§13) | all of the above, `canon` | updates to `canon` (hit rate, validated/contradicted status) |
+
+Skeptic runs last in a round — it's the one that cross-references
+everyone else's latest state and canon together. Chronologist runs first
+— it establishes which date-bands are active for the rest of the round to
+scope against.
+
+## 15. Cross-specialist round-robin
+
+Each specialist's turn: query the tables it depends on for rows changed
+since its own last turn (`WHERE updated_at_round > my_last_seen_round`),
+recompute, write results tagged with the current round. That query filter
+*is* the diff — no message-passing system, just a round column and query
+discipline.
+
+**Relevance gate**: a diff only counts as propagation-worthy if it passed
+significance (`is_significant`, §3) — an internal recompute that doesn't
+clear that bar isn't a "new discovery," it's noise, and shouldn't trigger
+downstream reanalysis. This also means a pattern too weak to matter now
+can become relevant later for free: more finds means more statistical
+power, so a borderline case can cross significance once more data exists,
+with no extra mechanism needed.
+
+Fixed round order (Chronologist → Statistician → Grammarian → Epigraphist
+→ Contextualist → Skeptic), repeating. A full round where nobody produces
+a significant diff means convergence — stop. Backstop against oscillation
+(a reclassification flipping back and forth instead of settling): hash
+the full derived-table state at the end of each complete round; a
+repeated hash means cycling, stop and flag it as a finding rather than
+looping forever. Hard round cap regardless, so a bug can't spin.
+
+**The LLM call is outside this loop entirely.** `analyze` (the round-robin
+above) runs to full convergence first. Only then does `gloss` run — once,
+bounded, no iteration. Whatever `gloss` writes is persisted but never fed
+back into the same `analyze` call; it's only visible the next time
+`analyze` runs. Gloss output re-triggering the same round-robin would risk
+an unbounded ping-pong (gloss → new state → deterministic re-run → new
+candidate needs glossing → gloss again → ...), exactly the runaway LLM
+usage this whole redesign exists to avoid.
