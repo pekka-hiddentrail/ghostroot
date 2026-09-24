@@ -398,3 +398,37 @@ back into the same `analyze` call; it's only visible the next time
 an unbounded ping-pong (gloss → new state → deterministic re-run → new
 candidate needs glossing → gloss again → ...), exactly the runaway LLM
 usage this whole redesign exists to avoid.
+
+## 16. LLM backend and MCP
+
+Two different jobs, two different latency needs:
+
+- **`gloss` and per-specialist narration** (§11's soft, optional prose
+  use) — batch, infrequent, nobody waiting live. **Local Ollama**, called
+  async so throughput doesn't block the pipeline. Call volume here is low
+  by design (§15 keeps the LLM outside the deterministic loop entirely),
+  so a slower local model is genuinely viable, not just tolerated.
+- **Interactive exploration** (a human or MCP client querying the corpus
+  live) — needs a fast response. A hosted free-tier API, provider TBD, not
+  locked in.
+
+**MCP layer**: built on the existing reference SQLite MCP server
+(github.com/modelcontextprotocol/servers), with domain-specific tools
+layered on top (`get_word_evidence`, `get_candidate_semantic_fields`, ...)
+rather than exposing raw SQL as the only interface. Same server backs both
+`gloss`'s on-demand evidence lookup and a human connecting an MCP client
+to explore the corpus directly.
+
+**Narrowing evidence before a `gloss` call**: start with a deterministic
+salience selection (most significant/representative examples, reusing
+stats §2/§3 already compute) rather than adding an embedding-based RAG
+dependency up front — simpler, no new model to run, and enough for the
+call volume involved. Real embedding retrieval is a fallback if the
+deterministic selection turns out insufficient, not a default.
+
+**Model choice**: not decided from memory — a real benchmark once
+implementation exists. Candidates: Qwen3 1.7B/4B, Gemma 3 4B, Llama 3.2
+3B, Phi-4-mini, run against representative gloss-assignment prompts (real
+evidence shapes the pipeline actually produces), measuring both latency
+and plausibility (a WordNet domain-consistency check doubles as a cheap
+automated quality signal, not just a runtime guardrail).
